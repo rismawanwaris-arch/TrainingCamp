@@ -2,13 +2,14 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 
-// GET all categories with count of published tutorials
+// GET all categories with count of published tutorials (exclude locked categories for public)
 router.get('/categories', (req, res) => {
   try {
     const categories = db.prepare(`
       SELECT c.*, COUNT(t.id) as tutorial_count 
       FROM categories c 
       LEFT JOIN tutorials t ON c.id = t.category_id AND t.status = 'published'
+      WHERE c.is_locked = 0
       GROUP BY c.id 
       ORDER BY c.order_index ASC, c.name ASC
     `).all();
@@ -24,6 +25,9 @@ router.get('/categories/:slug', (req, res) => {
     const category = db.prepare('SELECT * FROM categories WHERE slug = ?').get(req.params.slug);
     if (!category) {
       return res.status(404).json({ success: false, error: 'Kategori tidak ditemukan' });
+    }
+    if (category.is_locked === 1) {
+      return res.status(403).json({ success: false, error: 'Kategori ini sedang dikunci oleh administrator' });
     }
 
     const tutorials = db.prepare(`
@@ -43,7 +47,7 @@ router.get('/categories/:slug', (req, res) => {
 router.get('/tutorials', (req, res) => {
   try {
     const { q, category_id, tag, sort = 'latest', limit = 20, page = 1 } = req.query;
-    let conditions = ["t.status = 'published'"];
+    let conditions = ["t.status = 'published'", "c.is_locked = 0"];
     let params = [];
 
     if (q) {
@@ -108,7 +112,7 @@ router.get('/tutorials', (req, res) => {
 router.get('/tutorials/:slug', (req, res) => {
   try {
     const tutorial = db.prepare(`
-      SELECT t.*, c.name as category_name, c.slug as category_slug, c.icon as category_icon
+      SELECT t.*, c.name as category_name, c.slug as category_slug, c.icon as category_icon, c.is_locked
       FROM tutorials t
       JOIN categories c ON t.category_id = c.id
       WHERE t.slug = ? AND t.status = 'published'
@@ -116,6 +120,10 @@ router.get('/tutorials/:slug', (req, res) => {
 
     if (!tutorial) {
       return res.status(404).json({ success: false, error: 'Tutorial tidak ditemukan' });
+    }
+
+    if (tutorial.is_locked === 1) {
+      return res.status(403).json({ success: false, error: 'Tutorial ini berada di dalam kategori yang dikunci' });
     }
 
     // Identifikasi pengunjung (via header x-visitor-id, cookie, atau IP + User-Agent)

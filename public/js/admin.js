@@ -277,13 +277,15 @@ function switchTab(tabName) {
   const titles = {
     dashboard: 'Ringkasan Dashboard',
     tutorials: 'Kelola Seluruh Tutorial',
-    categories: 'Kelola Kategori Modul'
+    categories: 'Kelola Kategori Modul & Hak Akses',
+    users: 'Kelola Pengguna Administrator'
   };
   document.getElementById('pageTitle').innerText = titles[tabName] || 'Admin Console';
 
   if (tabName === 'dashboard') loadDashboardStats();
   if (tabName === 'tutorials') loadAdminTutorials();
   if (tabName === 'categories') loadAdminCategories();
+  if (tabName === 'users') loadAdminUsers();
 }
 
 // ----------------- DASHBOARD -----------------
@@ -567,8 +569,21 @@ function renderCategoryTable(list) {
     <tr>
       <td style="color:#94a3b8; font-weight:600;">${idx + 1}</td>
       <td style="font-size:1.2rem; color:var(--primary);"><i class="${c.icon || 'fa-solid fa-folder'}"></i></td>
-      <td><strong>${escapeHtml(c.name)}</strong></td>
-      <td><code>/${escapeHtml(c.slug)}</code></td>
+      <td>
+        <strong>${escapeHtml(c.name)}</strong>
+        <div style="font-size: 0.78rem; color: #94a3b8;"><code>/${escapeHtml(c.slug)}</code></div>
+      </td>
+      <td>
+        ${c.is_locked === 1 ? `
+          <button class="btn btn-sm" style="background:#fef2f2; color:#ef4444; border:1px solid #fecaca; padding:4px 10px;" onclick="toggleLockCategory(${c.id})" title="Klik untuk membuka kunci (unlock)">
+            <i class="fa-solid fa-lock"></i> Terkunci (Locked)
+          </button>
+        ` : `
+          <button class="btn btn-sm" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:4px 10px;" onclick="toggleLockCategory(${c.id})" title="Klik untuk mengunci kategori ini">
+            <i class="fa-solid fa-lock-open"></i> Terbuka (Public)
+          </button>
+        `}
+      </td>
       <td style="color:#64748b; font-size:0.85rem;">${escapeHtml(c.description || '-')}</td>
       <td><span style="font-weight:600;">${c.tutorial_count}</span> panduan</td>
       <td style="text-align: right; white-space: nowrap;">
@@ -577,6 +592,24 @@ function renderCategoryTable(list) {
       </td>
     </tr>
   `).join('');
+}
+
+async function toggleLockCategory(id) {
+  try {
+    const res = await fetchAdmin(`/api/admin/categories/${id}/toggle-lock`, {
+      method: 'PATCH'
+    });
+    const json = await res.json();
+    if (json.success) {
+      alert(json.message);
+      loadAdminCategories();
+      loadDashboardStats();
+    } else {
+      alert('Gagal mengubah status: ' + json.error);
+    }
+  } catch (err) {
+    alert(err.message);
+  }
 }
 
 function openCategoryModal(catData = null) {
@@ -588,6 +621,7 @@ function openCategoryModal(catData = null) {
     document.getElementById('catFormIcon').value = catData.icon || 'fa-solid fa-folder';
     document.getElementById('catFormDesc').value = catData.description || '';
     document.getElementById('catFormOrder').value = catData.order_index || 0;
+    document.getElementById('catFormLocked').value = catData.is_locked ? '1' : '0';
   } else {
     document.getElementById('catModalTitle').innerText = 'Tambah Kategori Baru';
     document.getElementById('catFormId').value = '';
@@ -595,6 +629,7 @@ function openCategoryModal(catData = null) {
     document.getElementById('catFormIcon').value = 'fa-solid fa-folder';
     document.getElementById('catFormDesc').value = '';
     document.getElementById('catFormOrder').value = allCategories.length + 1;
+    document.getElementById('catFormLocked').value = '0';
   }
   modal.classList.add('active');
 }
@@ -631,13 +666,14 @@ async function submitCategory() {
   const icon = document.getElementById('catFormIcon').value.trim();
   const description = document.getElementById('catFormDesc').value.trim();
   const order_index = document.getElementById('catFormOrder').value;
+  const is_locked = parseInt(document.getElementById('catFormLocked').value) || 0;
 
   if (!name) {
     alert('Nama kategori wajib diisi');
     return;
   }
 
-  const payload = { name, icon, description, order_index };
+  const payload = { name, icon, description, order_index, is_locked };
 
   try {
     const url = id ? `/api/admin/categories/${id}` : '/api/admin/categories';
@@ -659,6 +695,108 @@ async function submitCategory() {
     }
   } catch (err) {
     alert('Error: ' + err.message);
+  }
+}
+
+// ----------------- USER MANAGEMENT -----------------
+async function loadAdminUsers() {
+  try {
+    const res = await fetchAdmin('/api/admin/users');
+    const json = await res.json();
+    if (!json.success) return;
+
+    const tbody = document.getElementById('adminUserTableBody');
+    if (!json.data || json.data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:#94a3b8;">Belum ada user.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = json.data.map((u, idx) => `
+      <tr>
+        <td style="color:#94a3b8; font-weight:600;">${idx + 1}</td>
+        <td><strong>${escapeHtml(u.username)}</strong></td>
+        <td>${escapeHtml(u.full_name)}</td>
+        <td><span class="badge" style="background:#e0e7ff; color:#3730a3; padding:3px 8px; border-radius:6px; font-weight:600; font-size:0.8rem;">${escapeHtml(u.role || 'admin')}</span></td>
+        <td style="color:#64748b; font-size:0.82rem;">${new Date(u.created_at).toLocaleDateString('id-ID')}</td>
+        <td style="text-align: right; white-space: nowrap;">
+          <button class="btn btn-outline btn-sm" style="color: #ef4444; border-color: #fecaca;" onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')">
+            <i class="fa-solid fa-trash"></i> Hapus
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    console.error('Error load users:', err);
+  }
+}
+
+function openUserModal() {
+  document.getElementById('userModal').classList.add('active');
+  document.getElementById('newUserUsername').value = '';
+  document.getElementById('newUserFullName').value = '';
+  document.getElementById('newUserPassword').value = '';
+  document.getElementById('newUserRole').value = 'admin';
+}
+
+function closeUserModal() {
+  document.getElementById('userModal').classList.remove('active');
+}
+
+async function submitCreateUser() {
+  const username = document.getElementById('newUserUsername').value.trim();
+  const full_name = document.getElementById('newUserFullName').value.trim();
+  const role = document.getElementById('newUserRole').value;
+  const password = document.getElementById('newUserPassword').value;
+
+  if (!username || !full_name || !password) {
+    alert('Semua field wajib diisi!');
+    return;
+  }
+  if (password.length < 5) {
+    alert('Password minimal 5 karakter!');
+    return;
+  }
+
+  const btn = document.getElementById('saveUserBtn');
+  btn.disabled = true;
+  btn.innerText = 'Menyimpan...';
+
+  try {
+    const res = await fetchAdmin('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, full_name, role, password })
+    });
+    const json = await res.json();
+    if (json.success) {
+      alert('User baru berhasil ditambahkan!');
+      closeUserModal();
+      loadAdminUsers();
+    } else {
+      alert('Gagal: ' + json.error);
+    }
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Tambah User';
+  }
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(`Hapus user "${username}"? User ini tidak akan bisa login lagi ke Admin Console.`)) return;
+
+  try {
+    const res = await fetchAdmin(`/api/admin/users/${id}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.success) {
+      alert('User berhasil dihapus');
+      loadAdminUsers();
+    } else {
+      alert('Gagal: ' + json.error);
+    }
+  } catch (err) {
+    alert(err.message);
   }
 }
 

@@ -35,6 +35,9 @@
       <li class="admin-nav-item" id="nav-categories">
         <a href="#" onclick="switchTab('categories')"><i class="fa-solid fa-layer-group"></i> Kelola Kategori</a>
       </li>
+      <li class="admin-nav-item" id="nav-users">
+        <a href="#" onclick="switchTab('users')"><i class="fa-solid fa-users-gear"></i> Kelola User Admin</a>
+      </li>
       <li class="admin-nav-item" id="nav-new-tutorial">
         <a href="#" onclick="openTutorialModal()"><i class="fa-solid fa-circle-plus"></i> Buat Tutorial Baru</a>
       </li>
@@ -217,7 +220,10 @@
       <div id="tab-categories" class="tab-pane" style="display: none;">
         <div class="admin-card">
           <div class="admin-card-header">
-            <h3>Daftar Kategori Tutorial</h3>
+            <div>
+              <h3>Daftar Kategori Tutorial</h3>
+              <p style="font-size: 0.85rem; color: #64748b; margin-top: 4px;">Admin dapat mengunci (Lock) kategori tertentu agar tidak bisa diakses dan dilihat oleh pengguna umum.</p>
+            </div>
             <button class="btn btn-primary btn-sm" onclick="openCategoryModal()"><i class="fa-solid fa-plus"></i> Tambah Kategori Baru</button>
           </div>
 
@@ -228,13 +234,44 @@
                   <th style="width: 40px;">No</th>
                   <th>Ikon</th>
                   <th>Nama Kategori</th>
-                  <th>Slug URL</th>
+                  <th>Status Akses (Lock/Open)</th>
                   <th>Deskripsi</th>
                   <th>Jumlah Tutorial</th>
                   <th style="text-align: right;">Aksi</th>
                 </tr>
               </thead>
               <tbody id="adminCategoryTableBody">
+                <!-- JS populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: USERS MANAGEMENT -->
+      <div id="tab-users" class="tab-pane" style="display: none;">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <div>
+              <h3><i class="fa-solid fa-users"></i> Daftar Pengguna Admin</h3>
+              <p style="font-size: 0.85rem; color: #64748b; margin-top: 4px;">Kelola akun yang memiliki hak akses login ke Admin Console.</p>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openUserModal()"><i class="fa-solid fa-user-plus"></i> Tambah User Baru</button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px;">No</th>
+                  <th>Username</th>
+                  <th>Nama Lengkap</th>
+                  <th>Role</th>
+                  <th>Tanggal Dibuat</th>
+                  <th style="text-align: right;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="adminUserTableBody">
                 <!-- JS populated -->
               </tbody>
             </table>
@@ -380,9 +417,55 @@
             <input type="number" id="catFormOrder" class="form-control" value="0">
           </div>
 
+          <div class="form-group">
+            <label for="catFormLocked">Akses Pengguna (Lock Kategori)</label>
+            <select id="catFormLocked" class="form-control">
+              <option value="0">🔓 Terbuka (Dapat diakses seluruh pembaca/user)</option>
+              <option value="1">🔒 Terkunci (Hanya tampil di Admin, disembunyikan dari user)</option>
+            </select>
+          </div>
+
           <div class="modal-footer" style="padding-left: 0; padding-right: 0;">
             <button type="button" class="btn btn-outline" onclick="closeCategoryModal()">Batal</button>
             <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan Kategori</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD NEW USER -->
+  <div class="modal-overlay" id="userModal">
+    <div class="modal-content" style="max-width: 450px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-user-plus"></i> Tambah User Admin Baru</h3>
+        <button class="modal-close" onclick="closeUserModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="userForm" onsubmit="event.preventDefault(); submitCreateUser();">
+          <div class="form-group">
+            <label for="newUserUsername">Username <span style="color: red;">*</span></label>
+            <input type="text" id="newUserUsername" class="form-control" placeholder="Contoh: staff_admin" required>
+            <small style="color: #64748b;">Gunakan huruf kecil tanpa spasi.</small>
+          </div>
+          <div class="form-group">
+            <label for="newUserFullName">Nama Lengkap <span style="color: red;">*</span></label>
+            <input type="text" id="newUserFullName" class="form-control" placeholder="Contoh: Ahmad Fauzi" required>
+          </div>
+          <div class="form-group">
+            <label for="newUserRole">Role / Peran</label>
+            <select id="newUserRole" class="form-control">
+              <option value="admin">Admin (Akses Penuh)</option>
+              <option value="editor">Editor (Upload Tutorial)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="newUserPassword">Password Awal <span style="color: red;">*</span></label>
+            <input type="password" id="newUserPassword" class="form-control" placeholder="Minimal 5 karakter" required>
+          </div>
+          <div class="modal-footer" style="padding-left: 0; padding-right: 0;">
+            <button type="button" class="btn btn-outline" onclick="closeUserModal()">Batal</button>
+            <button type="submit" class="btn btn-primary" id="saveUserBtn"><i class="fa-solid fa-check"></i> Tambah User</button>
           </div>
         </form>
       </div>

@@ -100,6 +100,73 @@ router.post('/change-password', authMiddleware, (req, res) => {
   }
 });
 
+// ----------------- USER MANAGEMENT ROUTES -----------------
+// GET all users
+router.get('/users', authMiddleware, (req, res) => {
+  try {
+    const users = db.prepare('SELECT id, username, full_name, role, created_at FROM admin_users ORDER BY id ASC').all();
+    res.json({ success: true, data: users });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST add new user
+router.post('/users', authMiddleware, (req, res) => {
+  try {
+    const { username, password, full_name, role = 'admin' } = req.body;
+    if (!username || !username.trim()) {
+      return res.status(400).json({ success: false, error: 'Username wajib diisi' });
+    }
+    if (!password || password.length < 5) {
+      return res.status(400).json({ success: false, error: 'Password wajib minimal 5 karakter' });
+    }
+    if (!full_name || !full_name.trim()) {
+      return res.status(400).json({ success: false, error: 'Nama lengkap wajib diisi' });
+    }
+
+    const cleanUsername = username.trim().toLowerCase();
+    const existing = db.prepare('SELECT id FROM admin_users WHERE username = ?').get(cleanUsername);
+    if (existing) {
+      return res.status(400).json({ success: false, error: 'Username sudah digunakan, silakan pilih yang lain' });
+    }
+
+    const hashed = hashPassword(password);
+    const info = db.prepare(`
+      INSERT INTO admin_users (username, password_hash, full_name, role)
+      VALUES (?, ?, ?, ?)
+    `).run(cleanUsername, hashed, full_name.trim(), role);
+
+    res.json({
+      success: true,
+      message: 'User baru berhasil ditambahkan',
+      data: { id: info.lastInsertRowid, username: cleanUsername, full_name: full_name.trim(), role }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE user
+router.delete('/users/:id', authMiddleware, (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id);
+    if (targetId === req.admin.user_id) {
+      return res.status(400).json({ success: false, error: 'Anda tidak bisa menghapus akun Anda sendiri saat sedang login!' });
+    }
+
+    const countUsers = db.prepare('SELECT COUNT(*) as count FROM admin_users').get().count;
+    if (countUsers <= 1) {
+      return res.status(400).json({ success: false, error: 'Tidak dapat menghapus user terakhir dalam sistem' });
+    }
+
+    db.prepare('DELETE FROM admin_users WHERE id = ?').run(targetId);
+    res.json({ success: true, message: 'User berhasil dihapus' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Lindungi seluruh endpoint admin setelah auth
 router.use(authMiddleware);
 
@@ -239,16 +306,16 @@ router.get('/categories', (req, res) => {
 
 router.post('/categories', (req, res) => {
   try {
-    const { name, icon = 'folder', description = '', order_index = 0 } = req.body;
+    const { name, icon = 'folder', description = '', order_index = 0, is_locked = 0 } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Nama kategori wajib diisi' });
     }
     const slug = createUniqueSlug('categories', name);
     const stmt = db.prepare(`
-      INSERT INTO categories (name, slug, icon, description, order_index)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO categories (name, slug, icon, description, order_index, is_locked)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(name.trim(), slug, icon || 'folder', description, parseInt(order_index) || 0);
+    const info = stmt.run(name.trim(), slug, icon || 'folder', description, parseInt(order_index) || 0, is_locked ? 1 : 0);
     res.json({ success: true, data: { id: info.lastInsertRowid, name, slug } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -257,7 +324,7 @@ router.post('/categories', (req, res) => {
 
 router.put('/categories/:id', (req, res) => {
   try {
-    const { name, icon, description, order_index } = req.body;
+    const { name, icon, description, order_index, is_locked } = req.body;
     const catId = req.params.id;
     const existing = db.prepare('SELECT * FROM categories WHERE id = ?').get(catId);
     if (!existing) {
@@ -268,7 +335,7 @@ router.put('/categories/:id', (req, res) => {
 
     db.prepare(`
       UPDATE categories
-      SET name = ?, slug = ?, icon = ?, description = ?, order_index = ?
+      SET name = ?, slug = ?, icon = ?, description = ?, order_index = ?, is_locked = ?
       WHERE id = ?
     `).run(
       name || existing.name,
@@ -276,10 +343,35 @@ router.put('/categories/:id', (req, res) => {
       icon !== undefined ? icon : existing.icon,
       description !== undefined ? description : existing.description,
       order_index !== undefined ? parseInt(order_index) : existing.order_index,
+      is_locked !== undefined ? (is_locked ? 1 : 0) : existing.is_locked,
       catId
     );
 
     res.json({ success: true, message: 'Kategori berhasil diperbarui' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Toggle lock / unlock kategori
+router.patch('/categories/:id/toggle-lock', (req, res) => {
+  try {
+    const catId = req.params.id;
+    const existing = db.prepare('SELECT is_locked, name FROM categories WHERE id = ?').get(catId);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Kategori tidak ditemukan' });
+    }
+
+    const newLockState = existing.is_locked === 1 ? 0 : 1;
+    db.prepare('UPDATE categories SET is_locked = ? WHERE id = ?').run(newLockState, catId);
+
+    res.json({
+      success: true,
+      is_locked: newLockState,
+      message: newLockState === 1
+        ? `Kategori "${existing.name}" berhasil DIKUNCI (tidak dapat diakses user biasa)`
+        : `Kategori "${existing.name}" berhasil DIBUKA (dapat diakses user)`
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

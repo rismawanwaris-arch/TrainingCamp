@@ -22,6 +22,7 @@ db.exec(`
     icon TEXT DEFAULT 'folder',
     description TEXT,
     order_index INTEGER DEFAULT 0,
+    is_locked INTEGER DEFAULT 0, -- 1 = Terkunci / Lock (Tidak bisa diakses user publik), 0 = Terbuka
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -47,6 +48,7 @@ db.exec(`
     username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     full_name TEXT NOT NULL,
+    role TEXT DEFAULT 'admin', -- 'superadmin', 'admin', 'editor'
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -69,12 +71,18 @@ db.exec(`
   );
 `);
 
-// Migration: Tambahkan kolom video_url jika belum ada di database lama
+// Migration: Tambahkan kolom baru jika belum ada di database lama
 try {
   db.prepare("ALTER TABLE tutorials ADD COLUMN video_url TEXT").run();
-} catch (e) {
-  // Kolom sudah ada
-}
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE categories ADD COLUMN is_locked INTEGER DEFAULT 0").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE admin_users ADD COLUMN role TEXT DEFAULT 'admin'").run();
+} catch (e) {}
 
 // Password hashing helper using Node.js built-in crypto (PBKDF2)
 const crypto = require('crypto');

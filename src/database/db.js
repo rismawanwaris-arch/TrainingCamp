@@ -133,5 +133,6 @@ if (countCat.count === 0) {
 
 module.exports = db;
 module.exports.db = db;
+module.exports.dbPath = dbPath;
 module.exports.hashPassword = hashPassword;
 module.exports.verifyPassword = verifyPassword;

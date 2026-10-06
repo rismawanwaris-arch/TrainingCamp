@@ -278,7 +278,8 @@ function switchTab(tabName) {
     dashboard: 'Ringkasan Dashboard',
     tutorials: 'Kelola Seluruh Tutorial',
     categories: 'Kelola Kategori Modul & Hak Akses',
-    users: 'Kelola Pengguna Administrator'
+    users: 'Kelola Pengguna Administrator',
+    backup: 'Backup & Restore Database'
   };
   document.getElementById('pageTitle').innerText = titles[tabName] || 'Admin Console';
 
@@ -813,3 +814,117 @@ function escapeHtml(str) {
     }[m];
   });
 }
+
+// ----------------- BACKUP & RESTORE DATABASE -----------------
+async function downloadBackupDatabase() {
+  const btn = document.getElementById('downloadBackupBtn');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyiapkan Backup...';
+
+  try {
+    const res = await fetchAdmin('/api/admin/backup-db');
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.error || 'Gagal mengunduh file backup');
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+
+    // Ambil nama file dari header Content-Disposition jika ada
+    let filename = `tutorials-backup-${new Date().toISOString().slice(0, 10)}.db`;
+    const disposition = res.headers.get('content-disposition');
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      if (match && match[1]) filename = match[1];
+    }
+
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+  } catch (err) {
+    alert('Error saat mengunduh backup: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+
+async function submitRestoreDatabase() {
+  const fileInput = document.getElementById('restoreDbFileInput');
+  if (!fileInput.files || fileInput.files.length === 0) {
+    alert('Silakan pilih file database backup (.db) terlebih dahulu!');
+    return;
+  }
+
+  const file = fileInput.files[0];
+  if (!file.name.endsWith('.db') && !file.name.endsWith('.sqlite')) {
+    alert('File harus berformat SQLite database (.db atau .sqlite)!');
+    return;
+  }
+
+  const confirmRestore = confirm(
+    `PERINGATAN: Anda akan memulihkan database dari file "${file.name}".\n\n` +
+    `Semua data tutorial, kategori, dan akun saat ini akan ditimpa dengan data dari file backup tersebut.\n\n` +
+    `Apakah Anda yakin ingin melanjutkan?`
+  );
+
+  if (!confirmRestore) return;
+
+  const btn = document.getElementById('restoreSubmitBtn');
+  const statusMsg = document.getElementById('restoreStatusMsg');
+  const originalHtml = btn.innerHTML;
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memulihkan Database...';
+  statusMsg.style.display = 'none';
+
+  const formData = new FormData();
+  formData.append('database_file', file);
+
+  try {
+    const res = await fetchAdmin('/api/admin/restore-db', {
+      method: 'POST',
+      body: formData
+    });
+    const json = await res.json();
+
+    if (json.success) {
+      statusMsg.style.display = 'block';
+      statusMsg.style.background = '#ecfdf5';
+      statusMsg.style.color = '#065f46';
+      statusMsg.style.border = '1px solid #a7f3d0';
+      statusMsg.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + json.message;
+
+      alert('Restore Database Berhasil!\nHalaman akan dimuat ulang untuk menampilkan data terbaru.');
+      fileInput.value = '';
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } else {
+      statusMsg.style.display = 'block';
+      statusMsg.style.background = '#fef2f2';
+      statusMsg.style.color = '#991b1b';
+      statusMsg.style.border = '1px solid #fecaca';
+      statusMsg.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> ' + (json.error || 'Gagal memulihkan database.');
+      alert('Gagal: ' + (json.error || 'Terjadi kesalahan'));
+    }
+  } catch (err) {
+    statusMsg.style.display = 'block';
+    statusMsg.style.background = '#fef2f2';
+    statusMsg.style.color = '#991b1b';
+    statusMsg.style.border = '1px solid #fecaca';
+    statusMsg.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> ' + err.message;
+    alert('Error saat restore: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+

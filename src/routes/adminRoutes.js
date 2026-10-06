@@ -5,7 +5,20 @@ const path = require('path');
 const slugify = require('slugify');
 const fs = require('fs');
 const crypto = require('crypto');
-const { db, hashPassword, verifyPassword } = require('../database/db');
+const { db, dbPath, hashPassword, verifyPassword } = require('../database/db');
+
+// Setup multer storage for database restore upload (.db or .sqlite)
+const uploadDb = multer({
+  dest: path.join(__dirname, '../../public/uploads'),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  fileFilter: (req, file, cb) => {
+    if (file.originalname.endsWith('.db') || file.originalname.endsWith('.sqlite') || file.mimetype.includes('sqlite') || file.mimetype.includes('octet-stream')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Hanya file database SQLite (.db) yang diperbolehkan!'));
+    }
+  }
+});
 
 // Middleware untuk memverifikasi session token admin
 function authMiddleware(req, res, next) {
@@ -164,6 +177,66 @@ router.delete('/users/:id', authMiddleware, (req, res) => {
     res.json({ success: true, message: 'User berhasil dihapus' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ----------------- DATABASE BACKUP & RESTORE ROUTES -----------------
+// Download Backup Database (.db)
+router.get('/backup-db', authMiddleware, (req, res) => {
+  try {
+    // Flush WAL to disk first so backup contains the absolute latest data
+    db.pragma('wal_checkpoint(TRUNCATE)');
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `tutorials-backup-${timestamp}.db`;
+
+    res.download(dbPath, filename, (err) => {
+      if (err) {
+        console.error('Error sending backup file:', err);
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Gagal membuat backup database: ' + err.message });
+  }
+});
+
+// Restore Database from uploaded .db file
+router.post('/restore-db', authMiddleware, uploadDb.single('database_file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: 'Silakan pilih file database backup (.db) terlebih dahulu' });
+  }
+
+  const uploadedFilePath = req.file.path;
+
+  try {
+    // Verifikasi bahwa file yang diupload adalah SQLite database valid
+    const Database = require('better-sqlite3');
+    const testDb = new Database(uploadedFilePath, { readonly: true });
+    const checkTables = testDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tutorials', 'categories')").all();
+    testDb.close();
+
+    if (checkTables.length < 2) {
+      fs.unlinkSync(uploadedFilePath);
+      return res.status(400).json({ success: false, error: 'File yang diupload bukan format database TrainingCamp yang valid!' });
+    }
+
+    // Flush current database
+    db.pragma('wal_checkpoint(TRUNCATE)');
+
+    // Timpa database aktif dengan file restore
+    fs.copyFileSync(uploadedFilePath, dbPath);
+    fs.unlinkSync(uploadedFilePath);
+
+    // Reopen / wal checkpoint on new db
+    db.pragma('wal_checkpoint(TRUNCATE)');
+
+    res.json({
+      success: true,
+      message: 'Database berhasil dipulihkan (Restore Sukses)! Semua tutorial dan kategori telah kembali sesuai file backup.'
+    });
+  } catch (err) {
+    if (fs.existsSync(uploadedFilePath)) fs.unlinkSync(uploadedFilePath);
+    res.status(500).json({ success: false, error: 'Gagal melakukan restore database: ' + err.message });
   }
 });
 

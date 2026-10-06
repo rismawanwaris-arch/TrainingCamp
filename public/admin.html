@@ -38,6 +38,9 @@
       <li class="admin-nav-item" id="nav-users">
         <a href="#" onclick="switchTab('users')"><i class="fa-solid fa-users-gear"></i> Kelola User Admin</a>
       </li>
+      <li class="admin-nav-item" id="nav-backup">
+        <a href="#" onclick="switchTab('backup')"><i class="fa-solid fa-database"></i> Backup & Restore</a>
+      </li>
       <li class="admin-nav-item" id="nav-new-tutorial">
         <a href="#" onclick="openTutorialModal()"><i class="fa-solid fa-circle-plus"></i> Buat Tutorial Baru</a>
       </li>
@@ -275,6 +278,108 @@
                 <!-- JS populated -->
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: BACKUP & RESTORE DATABASE -->
+      <div id="tab-backup" class="tab-pane" style="display: none;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; max-width: 1100px;">
+          <!-- Card 1: Download Backup -->
+          <div class="admin-card">
+            <div class="admin-card-header" style="border-bottom: 1px solid #e2e8f0; padding-bottom: 16px;">
+              <div>
+                <h3 style="color: #0284c7; display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-cloud-arrow-down"></i> Download Backup Database
+                </h3>
+                <p style="font-size: 0.85rem; color: #64748b; margin-top: 4px;">
+                  Unduh salinan file database SQLite (.db) ke komputer Anda.
+                </p>
+              </div>
+            </div>
+            <div style="padding: 20px 0;">
+              <p style="color: #334155; font-size: 0.95rem; line-height: 1.6; margin-bottom: 16px;">
+                File backup berisi seluruh data penting website:
+              </p>
+              <ul style="color: #475569; font-size: 0.9rem; margin-bottom: 20px; padding-left: 20px; line-height: 1.8;">
+                <li><i class="fa-solid fa-check" style="color: #10b981; margin-right: 6px;"></i> Seluruh tutorial & panduan yang telah dibuat</li>
+                <li><i class="fa-solid fa-check" style="color: #10b981; margin-right: 6px;"></i> Struktur kategori modul & status kunci akses</li>
+                <li><i class="fa-solid fa-check" style="color: #10b981; margin-right: 6px;"></i> Daftar akun pengguna dan role admin</li>
+                <li><i class="fa-solid fa-check" style="color: #10b981; margin-right: 6px;"></i> Seluruh link video Google Drive & YouTube</li>
+              </ul>
+              <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px;">
+                <p style="color: #0369a1; font-size: 0.85rem; margin: 0; display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-circle-info"></i>
+                  Sistem otomatis menjalankan SQLite WAL flush sebelum pengunduhan untuk menjamin integritas data 100%.
+                </p>
+              </div>
+              <button class="btn btn-primary" id="downloadBackupBtn" onclick="downloadBackupDatabase()" style="width: 100%; justify-content: center; padding: 12px; font-size: 1rem;">
+                <i class="fa-solid fa-download"></i> Download Backup Database (.db) Sekarang
+              </button>
+            </div>
+          </div>
+
+          <!-- Card 2: Restore Database -->
+          <div class="admin-card">
+            <div class="admin-card-header" style="border-bottom: 1px solid #e2e8f0; padding-bottom: 16px;">
+              <div>
+                <h3 style="color: #d97706; display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-clock-rotate-left"></i> Restore Database
+                </h3>
+                <p style="font-size: 0.85rem; color: #64748b; margin-top: 4px;">
+                  Pulihkan data tutorial dari file backup (.db) yang sudah disimpan sebelumnya.
+                </p>
+              </div>
+            </div>
+            <div style="padding: 20px 0;">
+              <div style="background: #fffbeb; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;">
+                <div style="display: flex; gap: 10px;">
+                  <i class="fa-solid fa-triangle-exclamation" style="color: #d97706; font-size: 1.2rem; margin-top: 2px;"></i>
+                  <div>
+                    <strong style="color: #92400e; font-size: 0.9rem;">Perhatian Sebelum Restore:</strong>
+                    <p style="color: #b45309; font-size: 0.85rem; margin: 4px 0 0; line-height: 1.5;">
+                      Proses ini akan menimpa database aktif saat ini dengan data dari file backup. Pastikan Anda mengunggah file backup yang benar.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <form id="restoreDbForm" onsubmit="event.preventDefault(); submitRestoreDatabase();">
+                <div class="form-group">
+                  <label for="restoreDbFileInput" style="font-weight: 600; color: #1e293b; margin-bottom: 8px; display: block;">
+                    Pilih File Database Backup (.db):
+                  </label>
+                  <input type="file" id="restoreDbFileInput" class="form-control" accept=".db,.sqlite" required style="padding: 10px;">
+                  <small style="color: #64748b; margin-top: 6px; display: block;">
+                    Pilih file backup (contoh: <code>tutorials-backup-2026-10-06.db</code>).
+                  </small>
+                </div>
+
+                <div id="restoreStatusMsg" style="display: none; padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 0.9rem;"></div>
+
+                <button type="submit" class="btn" id="restoreSubmitBtn" style="width: 100%; justify-content: center; padding: 12px; font-size: 1rem; background: #f59e0b; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                  <i class="fa-solid fa-upload"></i> Mulai Pulihkan Database (Restore)
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Info Card: Persistent Storage Explanation -->
+        <div class="admin-card" style="margin-top: 24px; max-width: 1100px; background: #f8fafc; border: 1px solid #e2e8f0;">
+          <div style="display: flex; gap: 16px; align-items: flex-start;">
+            <div style="width: 44px; height: 44px; border-radius: 10px; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0;">
+              <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div>
+              <h4 style="color: #0f172a; margin-bottom: 6px;">Jaminan Keamanan Data saat Update Aplikasi</h4>
+              <p style="color: #475569; font-size: 0.9rem; line-height: 1.6; margin-bottom: 8px;">
+                Semua data tersimpan secara permanen di storage server ZimaOS Anda pada path <code>./data/tutorials.db</code> (Docker Persistent Volume) dan <b>BUKAN</b> di RAM atau di dalam image container sementara.
+              </p>
+              <p style="color: #475569; font-size: 0.9rem; line-height: 1.6; margin: 0;">
+                Setiap kali Anda menjalankan <code>git pull</code> atau <code>docker compose up -d --build</code> untuk update kode/fitur website, database ini <b>tidak akan pernah terhapus atau tertimpa</b>. Fitur backup di atas berguna sebagai pengaman ekstra jika Anda ingin menyimpan arsip di luar server.
+              </p>
+            </div>
           </div>
         </div>
       </div>

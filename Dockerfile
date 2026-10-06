@@ -1,15 +1,12 @@
-FROM node:20-alpine
+FROM node:22-bookworm-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install python and build tools needed for better-sqlite3 native compilation on alpine
-RUN apk add --no-cache python3 make g++
-
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies (production & build native modules)
+# Install dependencies (better-sqlite3 memiliki prebuilt binary untuk debian/glibc)
 RUN npm install --omit=dev
 
 # Copy application code

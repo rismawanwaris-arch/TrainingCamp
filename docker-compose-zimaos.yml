@@ -1,11 +1,11 @@
 name: trainingcamp
 services:
   knowledgebase:
-    image: node:20-alpine
+    image: node:22-bookworm-slim
     container_name: trainingcamp-kb
     restart: unless-stopped
     working_dir: /app
-    command: sh -c "apk add --no-cache python3 make g++ && npm install --omit=dev && node src/server.js"
+    command: sh -c "npm install --omit=dev && node src/server.js"
     ports:
       - "5001:5001"
     environment:

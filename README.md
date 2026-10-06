@@ -14,6 +14,11 @@ npm start
 - **Portal Publik:** http://localhost:3000
 - **Admin Console:** http://localhost:3000/admin
 
+### 🔐 Kredensial Login Admin Default:
+* **Username:** `admin`
+* **Password Default:** `admin123`
+*(Password dapat diubah langsung kapan saja melalui tombol **Ganti Password** di Admin Console atau melalui environment variable `ADMIN_PASSWORD`)*
+
 ---
 
 ### B. Deployment ke ZimaOS (Port 5001)

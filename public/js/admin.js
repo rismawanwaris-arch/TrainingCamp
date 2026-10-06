@@ -2,14 +2,173 @@
 let quillEditor = null;
 let allTutorials = [];
 let allCategories = [];
+let adminToken = localStorage.getItem('tc_admin_token') || '';
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
-  initQuillEditor();
-  loadDashboardStats();
-  loadAdminCategories();
-  loadAdminTutorials();
+  checkAuth();
 });
+
+// Helper fetch with Admin Auth Header
+async function fetchAdmin(url, options = {}) {
+  options.headers = options.headers || {};
+  if (adminToken) {
+    if (options.headers instanceof Headers) {
+      options.headers.set('x-admin-token', adminToken);
+    } else {
+      options.headers['x-admin-token'] = adminToken;
+    }
+  }
+
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    // Unauthorized / session expired
+    localStorage.removeItem('tc_admin_token');
+    adminToken = '';
+    showLoginOverlay();
+    throw new Error('Sesi telah berakhir, silakan login kembali.');
+  }
+  return res;
+}
+
+// Check auth status
+async function checkAuth() {
+  if (!adminToken) {
+    showLoginOverlay();
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/check-auth', {
+      headers: { 'x-admin-token': adminToken }
+    });
+    const json = await res.json();
+    if (json.success) {
+      hideLoginOverlay();
+      initQuillEditor();
+      loadDashboardStats();
+      loadAdminCategories();
+      loadAdminTutorials();
+    } else {
+      showLoginOverlay();
+    }
+  } catch (err) {
+    showLoginOverlay();
+  }
+}
+
+function showLoginOverlay() {
+  const overlay = document.getElementById('loginOverlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function hideLoginOverlay() {
+  const overlay = document.getElementById('loginOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function submitLogin() {
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errBox = document.getElementById('loginErrorMsg');
+  const btn = document.getElementById('loginSubmitBtn');
+
+  errBox.style.display = 'none';
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memverifikasi...';
+
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const json = await res.json();
+
+    if (json.success && json.token) {
+      adminToken = json.token;
+      localStorage.setItem('tc_admin_token', adminToken);
+      hideLoginOverlay();
+      document.getElementById('loginPassword').value = '';
+      if (!quillEditor) initQuillEditor();
+      loadDashboardStats();
+      loadAdminCategories();
+      loadAdminTutorials();
+    } else {
+      errBox.innerText = json.error || 'Login gagal, periksa username dan password.';
+      errBox.style.display = 'block';
+    }
+  } catch (err) {
+    errBox.innerText = 'Terjadi kesalahan: ' + err.message;
+    errBox.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Masuk ke Admin Console';
+  }
+}
+
+async function logoutAdmin() {
+  if (!confirm('Apakah Anda yakin ingin keluar dari Admin Console?')) return;
+  try {
+    await fetch('/api/admin/logout', {
+      method: 'POST',
+      headers: { 'x-admin-token': adminToken }
+    });
+  } catch (e) {}
+  localStorage.removeItem('tc_admin_token');
+  adminToken = '';
+  showLoginOverlay();
+}
+
+function openPasswordModal() {
+  document.getElementById('passwordModal').classList.add('active');
+  document.getElementById('oldPasswordInput').value = '';
+  document.getElementById('newPasswordInput').value = '';
+  document.getElementById('confirmPasswordInput').value = '';
+}
+
+function closePasswordModal() {
+  document.getElementById('passwordModal').classList.remove('active');
+}
+
+async function submitChangePassword() {
+  const oldPassword = document.getElementById('oldPasswordInput').value;
+  const newPassword = document.getElementById('newPasswordInput').value;
+  const confirmPassword = document.getElementById('confirmPasswordInput').value;
+
+  if (newPassword !== confirmPassword) {
+    alert('Konfirmasi password baru tidak cocok!');
+    return;
+  }
+  if (newPassword.length < 5) {
+    alert('Password baru minimal 5 karakter!');
+    return;
+  }
+
+  const btn = document.getElementById('changePassBtn');
+  btn.disabled = true;
+  btn.innerText = 'Menyimpan...';
+
+  try {
+    const res = await fetchAdmin('/api/admin/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldPassword, newPassword })
+    });
+    const json = await res.json();
+    if (json.success) {
+      alert('Password berhasil diperbarui! Silakan gunakan password baru ini di kemudian hari.');
+      closePasswordModal();
+    } else {
+      alert('Gagal: ' + json.error);
+    }
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Simpan Password';
+  }
+}
 
 // Setup Quill Rich Text Editor with custom Image Uploader
 function initQuillEditor() {
@@ -51,7 +210,7 @@ async function uploadAndInsertImage(file) {
   formData.append('image', file);
 
   try {
-    const res = await fetch('/api/admin/upload-image', {
+    const res = await fetchAdmin('/api/admin/upload-image', {
       method: 'POST',
       body: formData
     });
@@ -105,7 +264,7 @@ function switchTab(tabName) {
 // ----------------- DASHBOARD -----------------
 async function loadDashboardStats() {
   try {
-    const res = await fetch('/api/admin/dashboard-stats');
+    const res = await fetchAdmin('/api/admin/dashboard-stats');
     const json = await res.json();
     if (!json.success) return;
 
@@ -171,7 +330,7 @@ async function loadDashboardStats() {
 // ----------------- TUTORIALS CRUD -----------------
 async function loadAdminTutorials() {
   try {
-    const res = await fetch('/api/admin/tutorials');
+    const res = await fetchAdmin('/api/admin/tutorials');
     const json = await res.json();
     if (!json.success) return;
 
@@ -258,7 +417,7 @@ function closeTutorialModal() {
 
 async function editTutorial(id) {
   try {
-    const res = await fetch(`/api/admin/tutorials/${id}`);
+    const res = await fetchAdmin(`/api/admin/tutorials/${id}`);
     const json = await res.json();
     if (json.success) {
       openTutorialModal(json.data);
@@ -272,7 +431,7 @@ async function deleteTutorial(id, title) {
   if (!confirm(`Apakah Anda yakin ingin menghapus tutorial "${title}"?`)) return;
 
   try {
-    const res = await fetch(`/api/admin/tutorials/${id}`, { method: 'DELETE' });
+    const res = await fetchAdmin(`/api/admin/tutorials/${id}`, { method: 'DELETE' });
     const json = await res.json();
     if (json.success) {
       loadAdminTutorials();
@@ -324,7 +483,7 @@ async function submitTutorial() {
     const url = id ? `/api/admin/tutorials/${id}` : '/api/admin/tutorials';
     const method = id ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
+    const res = await fetchAdmin(url, {
       method: method,
       body: formData
     });
@@ -349,7 +508,7 @@ async function submitTutorial() {
 // ----------------- CATEGORIES CRUD -----------------
 async function loadAdminCategories() {
   try {
-    const res = await fetch('/api/admin/categories');
+    const res = await fetchAdmin('/api/admin/categories');
     const json = await res.json();
     if (!json.success) return;
 
@@ -424,7 +583,7 @@ async function deleteCategory(id, name) {
   if (!confirm(`Hapus kategori "${name}"? Kategori yang masih berisi artikel tutorial tidak bisa dihapus.`)) return;
 
   try {
-    const res = await fetch(`/api/admin/categories/${id}`, { method: 'DELETE' });
+    const res = await fetchAdmin(`/api/admin/categories/${id}`, { method: 'DELETE' });
     const json = await res.json();
     if (json.success) {
       loadAdminCategories();
@@ -455,7 +614,7 @@ async function submitCategory() {
     const url = id ? `/api/admin/categories/${id}` : '/api/admin/categories';
     const method = id ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
+    const res = await fetchAdmin(url, {
       method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)

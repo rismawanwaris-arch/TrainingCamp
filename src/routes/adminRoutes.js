@@ -4,7 +4,104 @@ const multer = require('multer');
 const path = require('path');
 const slugify = require('slugify');
 const fs = require('fs');
-const db = require('../database/db');
+const crypto = require('crypto');
+const { db, hashPassword, verifyPassword } = require('../database/db');
+
+// Middleware untuk memverifikasi session token admin
+function authMiddleware(req, res, next) {
+  const token = req.headers['x-admin-token'] || req.query.token;
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Akses ditolak: Silakan login terlebih dahulu' });
+  }
+
+  const session = db.prepare(`
+    SELECT s.token, u.id as user_id, u.username, u.full_name
+    FROM admin_sessions s
+    JOIN admin_users u ON s.user_id = u.id
+    WHERE s.token = ?
+  `).get(token);
+
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Sesi login telah kedaluwarsa atau tidak valid' });
+  }
+
+  req.admin = session;
+  next();
+}
+
+// ----------------- AUTHENTICATION ROUTES -----------------
+// Login
+router.post('/login', (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Username dan password wajib diisi' });
+    }
+
+    const user = db.prepare('SELECT * FROM admin_users WHERE username = ?').get(username.trim());
+    if (!user || !verifyPassword(password, user.password_hash)) {
+      return res.status(401).json({ success: false, error: 'Username atau password salah!' });
+    }
+
+    // Generate session token
+    const token = crypto.randomBytes(32).toString('hex');
+    db.prepare('INSERT INTO admin_sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        full_name: user.full_name
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Check Session
+router.get('/check-auth', authMiddleware, (req, res) => {
+  res.json({ success: true, user: req.admin });
+});
+
+// Logout
+router.post('/logout', (req, res) => {
+  const token = req.headers['x-admin-token'] || req.body.token;
+  if (token) {
+    db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(token);
+  }
+  res.json({ success: true, message: 'Berhasil logout' });
+});
+
+// Change Password
+router.post('/change-password', authMiddleware, (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Password lama dan baru wajib diisi' });
+    }
+    if (newPassword.length < 5) {
+      return res.status(400).json({ success: false, error: 'Password baru minimal 5 karakter' });
+    }
+
+    const user = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(req.admin.user_id);
+    if (!verifyPassword(oldPassword, user.password_hash)) {
+      return res.status(400).json({ success: false, error: 'Password lama tidak sesuai' });
+    }
+
+    const newHash = hashPassword(newPassword);
+    db.prepare('UPDATE admin_users SET password_hash = ? WHERE id = ?').run(newHash, user.id);
+
+    res.json({ success: true, message: 'Password berhasil diubah!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Lindungi seluruh endpoint admin setelah auth
+router.use(authMiddleware);
 
 // Setup multer storage for uploads (images, screenshots)
 const uploadDir = process.env.UPLOADS_DIR || path.join(__dirname, '../../public/uploads');

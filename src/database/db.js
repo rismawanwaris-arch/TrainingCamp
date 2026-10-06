@@ -59,9 +59,44 @@ db.exec(`
     FOREIGN KEY (tutorial_id) REFERENCES tutorials(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_views_lookup ON tutorial_views(tutorial_id, visitor_id, viewed_at);
+
+  CREATE TABLE IF NOT EXISTS admin_sessions (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE
+  );
 `);
 
-// Seed default data if empty
+// Password hashing helper using Node.js built-in crypto (PBKDF2)
+const crypto = require('crypto');
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, storedHash) {
+  if (!storedHash || !storedHash.includes(':')) return false;
+  const [salt, originalHash] = storedHash.split(':');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return hash === originalHash;
+}
+
+// Seed default admin user if not exists
+const countAdmin = db.prepare('SELECT COUNT(*) as count FROM admin_users').get();
+if (countAdmin.count === 0) {
+  const defaultPass = process.env.ADMIN_PASSWORD || 'admin123';
+  const hashed = hashPassword(defaultPass);
+  db.prepare(`
+    INSERT INTO admin_users (username, password_hash, full_name)
+    VALUES (?, ?, ?)
+  `).run('admin', hashed, 'Administrator');
+  console.log('Default admin account created: username "admin"');
+}
+
+// Seed default categories if empty
 const countCat = db.prepare('SELECT COUNT(*) as count FROM categories').get();
 if (countCat.count === 0) {
   const insertCat = db.prepare('INSERT INTO categories (name, slug, icon, description, order_index) VALUES (?, ?, ?, ?, ?)');
@@ -81,3 +116,6 @@ if (countCat.count === 0) {
 }
 
 module.exports = db;
+module.exports.db = db;
+module.exports.hashPassword = hashPassword;
+module.exports.verifyPassword = verifyPassword;

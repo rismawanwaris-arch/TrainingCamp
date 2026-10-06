@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Console - Training Camp Knowledgebase</title>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Quill Rich Text Editor CSS -->
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin-body">
+
+  <!-- ADMIN SIDEBAR -->
+  <aside class="admin-sidebar">
+    <div class="admin-sidebar-header">
+      <div class="logo-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+      <h2>Admin Console</h2>
+    </div>
+
+    <ul class="admin-nav">
+      <li class="admin-nav-item active" id="nav-dashboard">
+        <a href="#" onclick="switchTab('dashboard')"><i class="fa-solid fa-chart-pie"></i> Ringkasan Dashboard</a>
+      </li>
+      <li class="admin-nav-item" id="nav-tutorials">
+        <a href="#" onclick="switchTab('tutorials')"><i class="fa-solid fa-file-lines"></i> Kelola Tutorial</a>
+      </li>
+      <li class="admin-nav-item" id="nav-categories">
+        <a href="#" onclick="switchTab('categories')"><i class="fa-solid fa-layer-group"></i> Kelola Kategori</a>
+      </li>
+      <li class="admin-nav-item" id="nav-new-tutorial">
+        <a href="#" onclick="openTutorialModal()"><i class="fa-solid fa-circle-plus"></i> Buat Tutorial Baru</a>
+      </li>
+    </ul>
+
+    <div class="admin-sidebar-footer">
+      <a href="/" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square"></i> Lihat Website Publik</a>
+    </div>
+  </aside>
+
+  <!-- ADMIN MAIN AREA -->
+  <main class="admin-main">
+    <!-- TOPBAR -->
+    <header class="admin-topbar">
+      <div class="admin-topbar-title">
+        <h1 id="pageTitle">Ringkasan Dashboard</h1>
+      </div>
+      <div class="admin-topbar-actions">
+        <button class="btn btn-primary" onclick="openTutorialModal()">
+          <i class="fa-solid fa-plus"></i> Upload Tutorial Baru
+        </button>
+      </div>
+    </header>
+
+    <!-- CONTENT AREA -->
+    <div class="admin-content-area">
+
+      <!-- TAB 1: DASHBOARD OVERVIEW -->
+      <div id="tab-dashboard" class="tab-pane">
+        <!-- STATS CARDS -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue"><i class="fa-solid fa-book"></i></div>
+            <div class="stat-data">
+              <div class="stat-val" id="statTotalTutorials">0</div>
+              <div class="stat-lbl">Total Tutorial</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green"><i class="fa-solid fa-circle-check"></i></div>
+            <div class="stat-data">
+              <div class="stat-val" id="statPublished">0</div>
+              <div class="stat-lbl">Dipublikasikan</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon purple"><i class="fa-solid fa-layer-group"></i></div>
+            <div class="stat-data">
+              <div class="stat-val" id="statCategories">0</div>
+              <div class="stat-lbl">Kategori Modul</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber"><i class="fa-solid fa-chart-line"></i></div>
+            <div class="stat-data">
+              <div class="stat-val" id="statViews">0</div>
+              <div class="stat-lbl">Total Pembaca (Views)</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon blue" style="background:#e0e7ff; color:#4338ca;"><i class="fa-solid fa-users"></i></div>
+            <div class="stat-data">
+              <div class="stat-val" id="statUniqueVisitors">0</div>
+              <div class="stat-lbl">Pengunjung Unik Riil</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+          <!-- RECENT TUTORIALS -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3><i class="fa-solid fa-clock-rotate-left"></i> Tutorial Terbaru</h3>
+              <a href="#" onclick="switchTab('tutorials')" class="btn-sm btn-outline btn">Semua</a>
+            </div>
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Judul Panduan</th>
+                    <th>Kategori</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboardRecentTable">
+                  <!-- Rendered by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TOP POPULAR TUTORIALS -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3><i class="fa-solid fa-fire"></i> Tutorial Paling Banyak Dilihat</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Judul Panduan</th>
+                    <th>Kategori</th>
+                    <th>Views Riil</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboardTopTable">
+                  <!-- Rendered by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- REAL-TIME VISITOR ACTIVITY LOG -->
+        <div class="admin-card" style="margin-top: 24px;">
+          <div class="admin-card-header">
+            <h3><i class="fa-solid fa-rss" style="color: #10b981;"></i> Aktivitas Kunjungan Pembaca Riil (Real-Time)</h3>
+            <span class="badge" style="background:#dcfce7; color:#15803d; padding:4px 10px; border-radius:20px; font-size:0.8rem; font-weight:600;">Live Real Tracking</span>
+          </div>
+          <div class="table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Waktu Kunjungan</th>
+                  <th>Tutorial yang Dibaca</th>
+                  <th>Kategori</th>
+                  <th>IP Pengunjung</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardVisitorLogsTable">
+                <!-- Rendered by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: TUTORIALS MANAGEMENT -->
+      <div id="tab-tutorials" class="tab-pane" style="display: none;">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3>Daftar Seluruh Tutorial</h3>
+            <div style="display: flex; gap: 12px;">
+              <input type="text" id="adminTutSearch" placeholder="Cari judul..." onkeyup="filterAdminTutorials()" class="form-control" style="width: 220px; padding: 6px 12px; font-size: 0.88rem;">
+              <select id="adminTutCatFilter" onchange="filterAdminTutorials()" class="form-control" style="width: 180px; padding: 6px 12px; font-size: 0.88rem;">
+                <option value="">Semua Kategori</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="openTutorialModal()"><i class="fa-solid fa-plus"></i> Tambah</button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px;">No</th>
+                  <th>Judul Panduan</th>
+                  <th>Kategori</th>
+                  <th>Status</th>
+                  <th>Views</th>
+                  <th>Tanggal</th>
+                  <th style="text-align: right;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="adminTutorialTableBody">
+                <!-- JS populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: CATEGORIES MANAGEMENT -->
+      <div id="tab-categories" class="tab-pane" style="display: none;">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3>Daftar Kategori Tutorial</h3>
+            <button class="btn btn-primary btn-sm" onclick="openCategoryModal()"><i class="fa-solid fa-plus"></i> Tambah Kategori Baru</button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px;">No</th>
+                  <th>Ikon</th>
+                  <th>Nama Kategori</th>
+                  <th>Slug URL</th>
+                  <th>Deskripsi</th>
+                  <th>Jumlah Tutorial</th>
+                  <th style="text-align: right;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="adminCategoryTableBody">
+                <!-- JS populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MODAL: ADD / EDIT TUTORIAL -->
+  <div class="modal-overlay" id="tutorialModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="tutModalTitle">Upload Tutorial Baru</h3>
+        <button class="modal-close" onclick="closeTutorialModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="tutorialForm" onsubmit="event.preventDefault(); submitTutorial();">
+          <input type="hidden" id="tutFormId" value="">
+
+          <div class="form-group">
+            <label for="tutFormTitle">Judul Panduan / Tutorial <span style="color: red;">*</span></label>
+            <input type="text" id="tutFormTitle" class="form-control" placeholder="Contoh: Cara Membuat Faktur Penjualan dengan Termin Pembayaran" required>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+              <label for="tutFormCat">Kategori Modul <span style="color: red;">*</span></label>
+              <select id="tutFormCat" class="form-control" required>
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="tutFormStatus">Status Publikasi</label>
+              <select id="tutFormStatus" class="form-control">
+                <option value="published">Langsung Publikasikan (Published)</option>
+                <option value="draft">Simpan Sebagai Draf (Draft)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="tutFormSummary">Ringkasan Singkat (Summary)</label>
+            <input type="text" id="tutFormSummary" class="form-control" placeholder="1-2 kalimat pengantar mengenai tujuan dari tutorial ini...">
+          </div>
+
+          <div class="form-group">
+            <label>Gambar Thumbnail / Sampul (Opsional)</label>
+            <input type="file" id="tutFormThumbnailFile" class="form-control" accept="image/*">
+            <small style="color: #64748b;">Format: JPG, PNG, WEBP. Maks 10MB.</small>
+          </div>
+
+          <div class="form-group">
+            <label>Isi Lengkap Tutorial (Rich Text & Gambar) <span style="color: red;">*</span></label>
+            <div style="background: #fff; border-radius: 8px;">
+              <div id="editor-toolbar">
+                <span class="ql-formats">
+                  <select class="ql-header">
+                    <option value="2">Heading 2</option>
+                    <option value="3">Heading 3</option>
+                    <option selected>Normal</option>
+                  </select>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-bold"></button>
+                  <button class="ql-italic"></button>
+                  <button class="ql-underline"></button>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-list" value="ordered"></button>
+                  <button class="ql-list" value="bullet"></button>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-link"></button>
+                  <button class="ql-image"></button>
+                  <button class="ql-code-block"></button>
+                </span>
+              </div>
+              <div id="editor-container" style="height: 320px;"></div>
+            </div>
+            <small style="color: #64748b; margin-top: 6px; display: block;">
+              <i class="fa-solid fa-lightbulb" style="color: #f59e0b;"></i> Klik ikon <strong>Image</strong> di toolbar untuk upload screenshot step-by-step langsung ke dalam teks.
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label for="tutFormTags">Tag Pencarian (Dipisahkan koma)</label>
+            <input type="text" id="tutFormTags" class="form-control" placeholder="faktur, kasir, piutang, termin">
+          </div>
+
+          <div class="modal-footer" style="padding-left: 0; padding-right: 0;">
+            <button type="button" class="btn btn-outline" onclick="closeTutorialModal()">Batal</button>
+            <button type="submit" class="btn btn-primary" id="tutSubmitBtn"><i class="fa-solid fa-floppy-disk"></i> Simpan Tutorial</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD / EDIT CATEGORY -->
+  <div class="modal-overlay" id="categoryModal">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 id="catModalTitle">Tambah Kategori Baru</h3>
+        <button class="modal-close" onclick="closeCategoryModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="categoryForm" onsubmit="event.preventDefault(); submitCategory();">
+          <input type="hidden" id="catFormId" value="">
+
+          <div class="form-group">
+            <label for="catFormName">Nama Kategori <span style="color: red;">*</span></label>
+            <input type="text" id="catFormName" class="form-control" placeholder="Contoh: Pajak & e-Faktur" required>
+          </div>
+
+          <div class="form-group">
+            <label for="catFormIcon">Ikon FontAwesome</label>
+            <input type="text" id="catFormIcon" class="form-control" placeholder="fa-solid fa-calculator" value="fa-solid fa-folder">
+            <small style="color: #64748b;">Contoh: <code>fa-solid fa-cart-shopping</code>, <code>fa-solid fa-receipt</code></small>
+          </div>
+
+          <div class="form-group">
+            <label for="catFormDesc">Deskripsi Singkat</label>
+            <textarea id="catFormDesc" class="form-control" rows="3" placeholder="Deskripsi mengenai topik yang dibahas dalam modul ini..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="catFormOrder">Urutan Tampilan</label>
+            <input type="number" id="catFormOrder" class="form-control" value="0">
+          </div>
+
+          <div class="modal-footer" style="padding-left: 0; padding-right: 0;">
+            <button type="button" class="btn btn-outline" onclick="closeCategoryModal()">Batal</button>
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan Kategori</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for Quill image upload handler -->
+  <input type="file" id="quillImageInput" style="display: none;" accept="image/*">
+
+  <!-- Quill JS -->
+  <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+  <!-- Admin Controller JS -->
+  <script src="/js/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+name: trainingcamp
+services:
+  knowledgebase:
+    image: node:20-alpine
+    container_name: trainingcamp-kb
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "apk add --no-cache python3 make g++ && npm install --omit=dev && node src/server.js"
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - DATA_DIR=/app/data
+      - UPLOADS_DIR=/app/data/uploads
+    volumes:
+      - /DATA/AppData/trainingcamp:/app
+      - /DATA/AppData/trainingcamp/data:/app/data
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: knowledgebase
+  description:
+    en_us: Platform Tutorial & Knowledgebase Internal ala Bee.id
+  title:
+    en_us: TrainingCamp Knowledgebase
+  icon: https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/graduation-cap.svg
+  port_map: "5001"
+  scheme: http
+  index: /

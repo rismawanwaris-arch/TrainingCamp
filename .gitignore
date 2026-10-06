@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+package-lock.json.bak
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Credentials
+.env
+.env.*
+!.env.example
+
+# Local Databases & Journals
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+tutorials.db
+data/
+test_data/
+
+# User Uploaded Files (Screenshots, Media, Assets)
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.vim/
+
+# Logs & PIDs
+logs/
+*.log
+npm-debug.log*
+pids/
+*.pid
+*.seed

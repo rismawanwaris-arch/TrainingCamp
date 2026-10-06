@@ -1,0 +1,14 @@
+name: trainingcamp
+services:
+  knowledgebase:
+    build: .
+    container_name: trainingcamp-kb
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - DATA_DIR=/app/data
+      - UPLOADS_DIR=/app/data/uploads
+    volumes:
+      - ./data:/app/data

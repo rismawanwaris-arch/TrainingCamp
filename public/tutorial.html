@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detail Tutorial - Training Camp Knowledgebase</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="container nav-container">
+      <a href="/" class="brand-logo">
+        <i class="fa-solid fa-graduation-cap"></i>
+        <span>TrainingCamp</span>
+        <span class="brand-badge">Knowledgebase</span>
+      </a>
+      <div class="nav-links">
+        <a href="/"><i class="fa-solid fa-arrow-left"></i> Kembali ke Beranda</a>
+        <a href="/admin" class="btn btn-outline btn-sm"><i class="fa-solid fa-gauge"></i> Admin Console</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="article-container" id="articleLayout">
+      <!-- Loading indicator -->
+      <div id="loading" style="grid-column: 1/-1; text-align: center; padding: 100px 0;">
+        <i class="fa-solid fa-circle-notch fa-spin fa-2x" style="color: var(--primary);"></i>
+        <p style="margin-top: 15px; color: var(--gray-500);">Memuat materi tutorial...</p>
+      </div>
+
+      <!-- MAIN CONTENT -->
+      <article class="article-content-card" id="articleCard" style="display: none;">
+        <nav class="breadcrumb">
+          <a href="/">Beranda</a>
+          <i class="fa-solid fa-chevron-right" style="font-size: 0.7rem;"></i>
+          <span id="crumbCat">Kategori</span>
+          <i class="fa-solid fa-chevron-right" style="font-size: 0.7rem;"></i>
+          <span style="color: var(--gray-700);" id="crumbTitle">Tutorial</span>
+        </nav>
+
+        <header class="article-header">
+          <h1 id="tutTitle">Judul Panduan Tutorial</h1>
+          <div class="article-meta-row">
+            <span><i class="fa-regular fa-folder"></i> <strong id="tutCat">Kategori</strong></span>
+            <span><i class="fa-regular fa-calendar"></i> <span id="tutDate">-</span></span>
+            <span><i class="fa-regular fa-eye"></i> <span id="tutViews">0</span> dilihat</span>
+          </div>
+        </header>
+
+        <div id="tutThumbnailContainer" style="display: none; margin-bottom: 24px;">
+          <img id="tutThumbnail" src="" alt="Thumbnail Tutorial" style="width: 100%; max-height: 400px; object-fit: cover; border-radius: var(--radius-md);">
+        </div>
+
+        <!-- HTML CONTENT PROSE -->
+        <div class="prose" id="tutContent"></div>
+
+        <!-- TAGS -->
+        <div id="tutTags" style="margin-top: 35px; padding-top: 20px; border-top: 1px solid var(--gray-200); display: flex; gap: 8px; flex-wrap: wrap;">
+        </div>
+
+        <!-- FEEDBACK / WAS THIS HELPFUL ALA BEE.ID -->
+        <div style="margin-top: 40px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; text-align: center;">
+          <h4 style="color: var(--dark); margin-bottom: 8px;">Apakah tutorial ini membantu Anda?</h4>
+          <p style="color: var(--gray-500); font-size: 0.88rem; margin-bottom: 16px;">Beri tanggapan untuk peningkatan kualitas dokumentasi internal kami.</p>
+          <div style="display: flex; justify-content: center; gap: 12px;">
+            <button class="btn btn-outline btn-sm" onclick="alert('Terima kasih atas tanggapan positif Anda!')"><i class="fa-solid fa-thumbs-up" style="color: var(--accent-green);"></i> Ya, Sangat Membantu</button>
+            <button class="btn btn-outline btn-sm" onclick="alert('Terima kasih sarannya! Admin akan meninjau dan memperjelas panduan ini.')"><i class="fa-solid fa-thumbs-down" style="color: var(--accent-red);"></i> Masih Kurang Jelas</button>
+          </div>
+        </div>
+      </article>
+
+      <!-- SIDEBAR -->
+      <aside class="article-sidebar" id="articleSidebar" style="display: none;">
+        <!-- RELATED TUTORIALS -->
+        <div class="sidebar-box">
+          <h3 class="sidebar-title"><i class="fa-solid fa-book-bookmark"></i> Tutorial Terkait</h3>
+          <div id="relatedList" style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- QUICK HELP -->
+        <div class="sidebar-box" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-color: #bfdbfe;">
+          <h4 style="color: #1e40af; margin-bottom: 8px;"><i class="fa-solid fa-circle-question"></i> Perlu Bantuan Lanjutan?</h4>
+          <p style="font-size: 0.88rem; color: #1e3a8a; line-height: 1.5; margin-bottom: 14px;">
+            Jika Anda mengalami kendala di luar panduan ini, hubungi administrator atau tim support internal.
+          </p>
+          <a href="/admin" class="btn btn-sm btn-primary" style="width: 100%; justify-content: center;"><i class="fa-solid fa-headset"></i> Kontak Admin</a>
+        </div>
+      </aside>
+
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container footer-content">
+      <div><strong>TrainingCamp Knowledgebase</strong> &copy; 2026. Portal Dokumentasi Internal.</div>
+      <div><a href="/">Kembali ke Beranda</a></div>
+    </div>
+  </footer>
+
+  <script>
+    // Extract slug from URL: /tutorial/:slug
+    const pathParts = window.location.pathname.split('/');
+    const slug = pathParts[pathParts.length - 1];
+
+    // Generate or get unique visitor ID from localStorage
+    function getVisitorId() {
+      let vid = localStorage.getItem('tc_visitor_id');
+      if (!vid) {
+        vid = 'vis_' + Math.random().toString(36).substring(2, 12) + Date.now().toString(36);
+        localStorage.setItem('tc_visitor_id', vid);
+      }
+      return vid;
+    }
+
+    async function loadArticle() {
+      try {
+        const res = await fetch(`/api/tutorials/${slug}`, {
+          headers: {
+            'x-visitor-id': getVisitorId()
+          }
+        });
+        const data = await res.json();
+
+        if (!data.success || !data.data) {
+          document.getElementById('loading').innerHTML = `
+            <div style="background: #fff; padding: 40px; border-radius: 12px; border: 1px solid #e2e8f0;">
+              <i class="fa-solid fa-triangle-exclamation fa-3x" style="color: #ef4444; margin-bottom: 12px;"></i>
+              <h3 style="color: #0f172a; margin-bottom: 8px;">Tutorial Tidak Ditemukan</h3>
+              <p style="color: #64748b; margin-bottom: 20px;">Panduan yang Anda cari mungkin telah dipindahkan atau dihapus.</p>
+              <a href="/" class="btn btn-primary"><i class="fa-solid fa-arrow-left"></i> Kembali ke Beranda</a>
+            </div>
+          `;
+          return;
+        }
+
+        const t = data.data;
+        document.title = `${t.title} - TrainingCamp`;
+        document.getElementById('crumbCat').innerText = t.category_name;
+        document.getElementById('crumbTitle').innerText = t.title;
+        document.getElementById('tutTitle').innerText = t.title;
+        document.getElementById('tutCat').innerText = t.category_name;
+        document.getElementById('tutDate').innerText = new Date(t.created_at).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'});
+        document.getElementById('tutViews').innerText = t.views_count;
+        document.getElementById('tutContent').innerHTML = t.content;
+
+        if (t.thumbnail) {
+          document.getElementById('tutThumbnail').src = t.thumbnail;
+          document.getElementById('tutThumbnailContainer').style.display = 'block';
+        }
+
+        if (t.tags) {
+          const tagsArray = t.tags.split(',').map(s => s.trim()).filter(Boolean);
+          document.getElementById('tutTags').innerHTML = tagsArray.map(tag => `
+            <span style="background: #f1f5f9; color: #475569; font-size: 0.8rem; padding: 4px 10px; border-radius: 6px;">#${tag}</span>
+          `).join('');
+        }
+
+        // Render Related
+        const relContainer = document.getElementById('relatedList');
+        if (t.related && t.related.length > 0) {
+          relContainer.innerHTML = t.related.map(r => `
+            <a href="/tutorial/${r.slug}" style="display: block; font-size: 0.92rem; font-weight: 600; color: #1e293b; line-height: 1.4; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+              ${r.title}
+              <div style="font-size: 0.78rem; font-weight: 400; color: #94a3b8; margin-top: 4px;">
+                <i class="fa-regular fa-clock"></i> ${new Date(r.created_at).toLocaleDateString('id-ID', {day: 'numeric', month: 'short'})}
+              </div>
+            </a>
+          `).join('');
+        } else {
+          relContainer.innerHTML = `<span style="color: #94a3b8; font-size: 0.88rem;">Tidak ada panduan terkait lainnya.</span>`;
+        }
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('articleCard').style.display = 'block';
+        document.getElementById('articleSidebar').style.display = 'flex';
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('loading').innerHTML = `<p style="color: red;">Gagal memuat artikel.</p>`;
+      }
+    }
+
+    loadArticle();
+  </script>
+</body>
+</html>

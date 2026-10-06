@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pusat Panduan & Tutorial Internal - Training Camp</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="container nav-container">
+      <a href="/" class="brand-logo">
+        <i class="fa-solid fa-graduation-cap"></i>
+        <span>TrainingCamp</span>
+        <span class="brand-badge">Knowledgebase</span>
+      </a>
+      <div class="nav-links">
+        <a href="/"><i class="fa-solid fa-home"></i> Beranda</a>
+        <a href="#kategori"><i class="fa-solid fa-layer-group"></i> Kategori</a>
+        <a href="#terbaru"><i class="fa-solid fa-book-open"></i> Tutorial</a>
+        <a href="/admin" class="btn btn-outline btn-sm"><i class="fa-solid fa-gauge"></i> Admin Console</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO SECTION ALA BEE.ID -->
+  <header class="hero-section">
+    <div class="container">
+      <h1 class="hero-title">Pusat Panduan & Tutorial Sistem</h1>
+      <p class="hero-subtitle">
+        Temukan dokumentasi langkah demi langkah, standar operasional prosedur, dan tutorial lengkap untuk operasional tim Anda.
+      </p>
+
+      <div class="search-box-wrapper">
+        <form id="searchForm" onsubmit="event.preventDefault(); handleSearch();">
+          <div class="search-input-group">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="searchInput" placeholder="Ketik kata kunci tutorial, misal: 'Kasir', 'Stok', 'Laba Rugi'...">
+            <button type="submit"><i class="fa-solid fa-search"></i> Cari Panduan</button>
+          </div>
+        </form>
+        <div class="hero-tags">
+          <span>Pencarian populer:</span>
+          <a href="#" onclick="quickSearch('kasir')">#Kasir POS</a>
+          <a href="#" onclick="quickSearch('stok')">#Stock Opname</a>
+          <a href="#" onclick="quickSearch('setup')">#Setup Awal</a>
+          <a href="#" onclick="quickSearch('laba')">#Laporan Keuangan</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="container" style="padding-top: 50px;">
+
+    <!-- SEARCH RESULT BANNER (HIDDEN INITIALLY) -->
+    <div id="searchResultBanner" style="display: none; margin-bottom: 30px; background: #e0f2fe; padding: 16px 20px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        Hasil pencarian untuk: <strong id="searchKeyword"></strong>
+        <span id="searchResultCount" style="color: #0284c7; margin-left: 8px;"></span>
+      </div>
+      <button class="btn btn-sm btn-outline" onclick="resetSearch()"><i class="fa-solid fa-xmark"></i> Hapus Filter</button>
+    </div>
+
+    <!-- CATEGORIES SECTION -->
+    <section id="kategori">
+      <div class="section-header">
+        <h2>Kategori Tutorial</h2>
+        <p>Pilih topik panduan sesuai dengan modul atau divisi operasional</p>
+      </div>
+      <div class="category-grid" id="categoryGrid">
+        <!-- Rendered via JS -->
+        <div style="text-align: center; grid-column: 1/-1; padding: 40px; color: #94a3b8;">
+          <i class="fa-solid fa-spinner fa-spin fa-2x"></i> Memuat kategori...
+        </div>
+      </div>
+    </section>
+
+    <!-- RECENT / ALL TUTORIALS -->
+    <section id="terbaru" style="margin-top: 40px;">
+      <div class="section-header" style="text-align: left; display: flex; justify-content: space-between; align-items: flex-end;">
+        <div>
+          <h2 id="tutorialSectionTitle">Semua Panduan Tutorial</h2>
+          <p>Daftar tutorial step-by-step terbaru yang siap dipelajari</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <select id="sortSelect" onchange="loadTutorials()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-family: inherit; font-size: 0.88rem; outline: none;">
+            <option value="latest">Urutkan: Terbaru</option>
+            <option value="popular">Urutkan: Terpopuler</option>
+            <option value="title">Urutkan: Judul (A-Z)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="tutorial-grid" id="tutorialGrid">
+        <!-- Rendered via JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container footer-content">
+      <div>
+        <strong>TrainingCamp Knowledgebase</strong> &copy; 2026. Portal Dokumentasi & Tutorial Internal.
+      </div>
+      <div>
+        <a href="/admin" class="btn btn-sm btn-primary"><i class="fa-solid fa-lock"></i> Masuk Admin Console</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    let currentCategoryId = null;
+
+    async function loadCategories() {
+      try {
+        const res = await fetch('/api/categories');
+        const data = await res.json();
+        if (data.success) {
+          const container = document.getElementById('categoryGrid');
+          container.innerHTML = data.data.map(cat => `
+            <div class="category-card" onclick="filterByCategory(${cat.id}, '${escapeHtml(cat.name)}')">
+              <div class="cat-header">
+                <div class="cat-icon"><i class="${cat.icon || 'fa-solid fa-folder'}"></i></div>
+                <div>
+                  <div class="cat-title">${escapeHtml(cat.name)}</div>
+                  <span class="cat-badge">${cat.tutorial_count} tutorial</span>
+                </div>
+              </div>
+              <div class="cat-desc">${escapeHtml(cat.description || 'Kumpulan tutorial mengenai modul ' + cat.name)}</div>
+              <div class="cat-footer">
+                <span>Jelajahi Panduan</span>
+                <i class="fa-solid fa-arrow-right"></i>
+              </div>
+            </div>
+          `).join('');
+        }
+      } catch (err) {
+        console.error('Error loading categories:', err);
+      }
+    }
+
+    async function loadTutorials(q = '') {
+      try {
+        const sort = document.getElementById('sortSelect').value;
+        let url = `/api/tutorials?sort=${sort}`;
+        if (q) url += `&q=${encodeURIComponent(q)}`;
+        if (currentCategoryId) url += `&category_id=${currentCategoryId}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success) {
+          const container = document.getElementById('tutorialGrid');
+          if (data.data.length === 0) {
+            container.innerHTML = `
+              <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; background: #fff; border-radius: 12px; border: 1px dashed #cbd5e1;">
+                <i class="fa-regular fa-folder-open fa-3x" style="color: #94a3b8; margin-bottom: 12px;"></i>
+                <h4 style="color: #334155; margin-bottom: 6px;">Belum Ada Tutorial</h4>
+                <p style="color: #64748b; font-size: 0.9rem;">Tidak ditemukan panduan untuk pencarian atau kategori ini.</p>
+              </div>
+            `;
+            return;
+          }
+
+          container.innerHTML = data.data.map(t => `
+            <a href="/tutorial/${t.slug}" class="tutorial-card">
+              <div class="tutorial-card-body">
+                <span class="tut-cat-pill"><i class="${t.category_icon || 'fa-solid fa-folder'}"></i> ${escapeHtml(t.category_name)}</span>
+                <h3 class="tut-title">${escapeHtml(t.title)}</h3>
+                <p class="tut-summary">${escapeHtml(t.summary || '')}</p>
+                <div class="tut-meta">
+                  <span><i class="fa-regular fa-clock"></i> ${new Date(t.created_at).toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'})}</span>
+                  <span><i class="fa-regular fa-eye"></i> ${t.views_count} dilihat</span>
+                </div>
+              </div>
+            </a>
+          `).join('');
+        }
+      } catch (err) {
+        console.error('Error loading tutorials:', err);
+      }
+    }
+
+    function handleSearch() {
+      const q = document.getElementById('searchInput').value.trim();
+      if (!q) {
+        resetSearch();
+        return;
+      }
+      document.getElementById('searchResultBanner').style.display = 'flex';
+      document.getElementById('searchKeyword').innerText = `"${q}"`;
+      document.getElementById('tutorialSectionTitle').innerText = 'Hasil Pencarian';
+      loadTutorials(q);
+      document.getElementById('terbaru').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function quickSearch(tag) {
+      document.getElementById('searchInput').value = tag;
+      handleSearch();
+    }
+
+    function filterByCategory(catId, catName) {
+      currentCategoryId = catId;
+      document.getElementById('searchResultBanner').style.display = 'flex';
+      document.getElementById('searchKeyword').innerText = `Kategori: ${catName}`;
+      document.getElementById('tutorialSectionTitle').innerText = `Panduan ${catName}`;
+      loadTutorials();
+      document.getElementById('terbaru').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function resetSearch() {
+      currentCategoryId = null;
+      document.getElementById('searchInput').value = '';
+      document.getElementById('searchResultBanner').style.display = 'none';
+      document.getElementById('tutorialSectionTitle').innerText = 'Semua Panduan Tutorial';
+      loadTutorials();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>"']/g, function(m) {
+        return {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        }[m];
+      });
+    }
+
+    // Init
+    loadCategories();
+    loadTutorials();
+  </script>
+</body>
+</html>

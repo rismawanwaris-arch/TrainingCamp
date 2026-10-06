@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.DS_Store
+.git
+.gitignore
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+tutorials.db
+public/uploads/*
+!public/uploads/.gitkeep

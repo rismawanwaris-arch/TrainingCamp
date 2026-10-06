@@ -177,7 +177,8 @@ function initQuillEditor() {
       toolbar: {
         container: '#editor-toolbar',
         handlers: {
-          image: customImageHandler
+          image: customImageHandler,
+          video: customVideoHandler
         }
       }
     },
@@ -236,6 +237,30 @@ function customImageHandler() {
     fileInput.value = ''; // reset input
   };
   fileInput.click();
+}
+
+function customVideoHandler() {
+  let url = prompt('Masukkan URL Video (Google Drive, YouTube, atau MP4 direct link):');
+  if (!url) return;
+  url = url.trim();
+
+  // Otomatis ubah link sharing Google Drive menjadi link embed preview
+  // Contoh: https://drive.google.com/file/d/1A2B3C/view?usp=sharing -> https://drive.google.com/file/d/1A2B3C/preview
+  if (url.includes('drive.google.com/file/d/')) {
+    const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) {
+      url = `https://drive.google.com/file/d/${match[1]}/preview`;
+    }
+  } else if (url.includes('drive.google.com/open?id=')) {
+    const match = url.match(/id=([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) {
+      url = `https://drive.google.com/file/d/${match[1]}/preview`;
+    }
+  }
+
+  const range = quillEditor.getSelection(true) || { index: quillEditor.getLength() };
+  quillEditor.insertEmbed(range.index, 'video', url);
+  quillEditor.setSelection(range.index + 1);
 }
 
 // Tab navigation

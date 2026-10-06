@@ -33,6 +33,7 @@ db.exec(`
     summary TEXT,
     content TEXT NOT NULL,
     thumbnail TEXT,
+    video_url TEXT,
     tags TEXT,
     status TEXT DEFAULT 'published', -- 'published' or 'draft'
     views_count INTEGER DEFAULT 0,
@@ -67,6 +68,13 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE
   );
 `);
+
+// Migration: Tambahkan kolom video_url jika belum ada di database lama
+try {
+  db.prepare("ALTER TABLE tutorials ADD COLUMN video_url TEXT").run();
+} catch (e) {
+  // Kolom sudah ada
+}
 
 // Password hashing helper using Node.js built-in crypto (PBKDF2)
 const crypto = require('crypto');

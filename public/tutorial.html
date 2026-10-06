@@ -58,6 +58,16 @@
           <img id="tutThumbnail" src="" alt="Thumbnail Tutorial" style="width: 100%; max-height: 400px; object-fit: cover; border-radius: var(--radius-md);">
         </div>
 
+        <!-- VIDEO PLAYER EMBED (GOOGLE DRIVE / YOUTUBE) -->
+        <div id="tutVideoContainer" style="display: none; margin-bottom: 30px;">
+          <div style="background: #0f172a; padding: 10px 16px; border-radius: var(--radius-md) var(--radius-md) 0 0; color: #fff; font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-circle-play" style="color: #38bdf8;"></i> Video Panduan Tutorial
+          </div>
+          <div class="video-wrapper" style="margin: 0; border-radius: 0 0 var(--radius-md) var(--radius-md);">
+            <iframe id="tutVideoFrame" src="" allowfullscreen allow="autoplay"></iframe>
+          </div>
+        </div>
+
         <!-- HTML CONTENT PROSE -->
         <div class="prose" id="tutContent"></div>
 
@@ -155,6 +165,28 @@
         if (t.thumbnail) {
           document.getElementById('tutThumbnail').src = t.thumbnail;
           document.getElementById('tutThumbnailContainer').style.display = 'block';
+        }
+
+        // Render video if available
+        if (t.video_url && t.video_url.trim()) {
+          let vUrl = t.video_url.trim();
+          // Auto convert Google Drive links to preview
+          if (vUrl.includes('drive.google.com/file/d/')) {
+            const match = vUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+            if (match && match[1]) vUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+          } else if (vUrl.includes('drive.google.com/open?id=')) {
+            const match = vUrl.match(/id=([a-zA-Z0-9_-]+)/);
+            if (match && match[1]) vUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+          } else if (vUrl.includes('youtube.com/watch?v=')) {
+            const match = vUrl.match(/v=([a-zA-Z0-9_-]+)/);
+            if (match && match[1]) vUrl = `https://www.youtube.com/embed/${match[1]}`;
+          } else if (vUrl.includes('youtu.be/')) {
+            const match = vUrl.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+            if (match && match[1]) vUrl = `https://www.youtube.com/embed/${match[1]}`;
+          }
+
+          document.getElementById('tutVideoFrame').src = vUrl;
+          document.getElementById('tutVideoContainer').style.display = 'block';
         }
 
         if (t.tags) {

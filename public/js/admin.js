@@ -421,6 +421,7 @@ function openTutorialModal(tutData = null) {
     document.getElementById('tutFormCat').value = tutData.category_id;
     document.getElementById('tutFormStatus').value = tutData.status;
     document.getElementById('tutFormSummary').value = tutData.summary || '';
+    document.getElementById('tutFormVideoUrl').value = tutData.video_url || '';
     document.getElementById('tutFormTags').value = tutData.tags || '';
     quillEditor.root.innerHTML = tutData.content || '';
   } else {
@@ -429,6 +430,7 @@ function openTutorialModal(tutData = null) {
     document.getElementById('tutFormTitle').value = '';
     document.getElementById('tutFormStatus').value = 'published';
     document.getElementById('tutFormSummary').value = '';
+    document.getElementById('tutFormVideoUrl').value = '';
     document.getElementById('tutFormTags').value = '';
     quillEditor.root.innerHTML = '';
   }
@@ -475,6 +477,7 @@ async function submitTutorial() {
   const category_id = document.getElementById('tutFormCat').value;
   const status = document.getElementById('tutFormStatus').value;
   const summary = document.getElementById('tutFormSummary').value.trim();
+  const video_url = document.getElementById('tutFormVideoUrl').value.trim();
   const tags = document.getElementById('tutFormTags').value.trim();
   const content = quillEditor.root.innerHTML;
   const fileInput = document.getElementById('tutFormThumbnailFile');
@@ -493,6 +496,7 @@ async function submitTutorial() {
   formData.append('category_id', category_id);
   formData.append('status', status);
   formData.append('summary', summary);
+  formData.append('video_url', video_url);
   formData.append('tags', tags);
   formData.append('content', content);
 

@@ -362,7 +362,7 @@ router.get('/tutorials/:id', (req, res) => {
 
 router.post('/tutorials', upload.single('thumbnail'), (req, res) => {
   try {
-    const { category_id, title, summary, content, tags, status = 'published' } = req.body;
+    const { category_id, title, summary, content, video_url, tags, status = 'published' } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ success: false, error: 'Judul tutorial wajib diisi' });
@@ -378,8 +378,8 @@ router.post('/tutorials', upload.single('thumbnail'), (req, res) => {
     const thumbnail = req.file ? `/uploads/${req.file.filename}` : (req.body.thumbnail_url || null);
 
     const stmt = db.prepare(`
-      INSERT INTO tutorials (category_id, title, slug, summary, content, thumbnail, tags, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO tutorials (category_id, title, slug, summary, content, thumbnail, video_url, tags, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const info = stmt.run(
@@ -389,6 +389,7 @@ router.post('/tutorials', upload.single('thumbnail'), (req, res) => {
       summary || '',
       content,
       thumbnail,
+      video_url || null,
       tags || '',
       status
     );
@@ -411,7 +412,7 @@ router.put('/tutorials/:id', upload.single('thumbnail'), (req, res) => {
       return res.status(404).json({ success: false, error: 'Tutorial tidak ditemukan' });
     }
 
-    const { category_id, title, summary, content, tags, status } = req.body;
+    const { category_id, title, summary, content, video_url, tags, status } = req.body;
 
     let slug = existing.slug;
     if (title && title.trim() !== existing.title) {
@@ -428,7 +429,7 @@ router.put('/tutorials/:id', upload.single('thumbnail'), (req, res) => {
     db.prepare(`
       UPDATE tutorials
       SET category_id = ?, title = ?, slug = ?, summary = ?, content = ?,
-          thumbnail = ?, tags = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+          thumbnail = ?, video_url = ?, tags = ?, status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
       category_id || existing.category_id,
@@ -437,6 +438,7 @@ router.put('/tutorials/:id', upload.single('thumbnail'), (req, res) => {
       summary !== undefined ? summary : existing.summary,
       content !== undefined ? content : existing.content,
       thumbnail,
+      video_url !== undefined ? video_url : existing.video_url,
       tags !== undefined ? tags : existing.tags,
       status || existing.status,
       tutId

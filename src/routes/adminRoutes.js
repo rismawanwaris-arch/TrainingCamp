@@ -379,16 +379,16 @@ router.get('/categories', (req, res) => {
 
 router.post('/categories', (req, res) => {
   try {
-    const { name, icon = 'folder', description = '', order_index = 0, is_locked = 0 } = req.body;
+    const { name, icon = 'folder', description = '', order_index = 0, is_locked = 0, access_password = '' } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Nama kategori wajib diisi' });
     }
     const slug = createUniqueSlug('categories', name);
     const stmt = db.prepare(`
-      INSERT INTO categories (name, slug, icon, description, order_index, is_locked)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO categories (name, slug, icon, description, order_index, is_locked, access_password)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(name.trim(), slug, icon || 'folder', description, parseInt(order_index) || 0, is_locked ? 1 : 0);
+    const info = stmt.run(name.trim(), slug, icon || 'folder', description, parseInt(order_index) || 0, is_locked ? 1 : 0, access_password ? access_password.trim() : null);
     res.json({ success: true, data: { id: info.lastInsertRowid, name, slug } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -397,7 +397,7 @@ router.post('/categories', (req, res) => {
 
 router.put('/categories/:id', (req, res) => {
   try {
-    const { name, icon, description, order_index, is_locked } = req.body;
+    const { name, icon, description, order_index, is_locked, access_password } = req.body;
     const catId = req.params.id;
     const existing = db.prepare('SELECT * FROM categories WHERE id = ?').get(catId);
     if (!existing) {
@@ -408,7 +408,7 @@ router.put('/categories/:id', (req, res) => {
 
     db.prepare(`
       UPDATE categories
-      SET name = ?, slug = ?, icon = ?, description = ?, order_index = ?, is_locked = ?
+      SET name = ?, slug = ?, icon = ?, description = ?, order_index = ?, is_locked = ?, access_password = ?
       WHERE id = ?
     `).run(
       name || existing.name,
@@ -417,6 +417,7 @@ router.put('/categories/:id', (req, res) => {
       description !== undefined ? description : existing.description,
       order_index !== undefined ? parseInt(order_index) : existing.order_index,
       is_locked !== undefined ? (is_locked ? 1 : 0) : existing.is_locked,
+      access_password !== undefined ? (access_password ? access_password.trim() : null) : existing.access_password,
       catId
     );
 
@@ -430,20 +431,30 @@ router.put('/categories/:id', (req, res) => {
 router.patch('/categories/:id/toggle-lock', (req, res) => {
   try {
     const catId = req.params.id;
-    const existing = db.prepare('SELECT is_locked, name FROM categories WHERE id = ?').get(catId);
+    const existing = db.prepare('SELECT is_locked, name, access_password FROM categories WHERE id = ?').get(catId);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Kategori tidak ditemukan' });
     }
 
     const newLockState = existing.is_locked === 1 ? 0 : 1;
-    db.prepare('UPDATE categories SET is_locked = ? WHERE id = ?').run(newLockState, catId);
+    const { access_password } = req.body || {};
+    
+    if (newLockState === 1 && access_password !== undefined) {
+      db.prepare('UPDATE categories SET is_locked = ?, access_password = ? WHERE id = ?').run(
+        newLockState, 
+        access_password ? access_password.trim() : existing.access_password, 
+        catId
+      );
+    } else {
+      db.prepare('UPDATE categories SET is_locked = ? WHERE id = ?').run(newLockState, catId);
+    }
 
     res.json({
       success: true,
       is_locked: newLockState,
       message: newLockState === 1
-        ? `Kategori "${existing.name}" berhasil DIKUNCI (tidak dapat diakses user biasa)`
-        : `Kategori "${existing.name}" berhasil DIBUKA (dapat diakses user)`
+        ? `Kategori "${existing.name}" berhasil DIKUNCI (perlu password untuk diakses publik)`
+        : `Kategori "${existing.name}" berhasil DIBUKA (dapat diakses bebas)`
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

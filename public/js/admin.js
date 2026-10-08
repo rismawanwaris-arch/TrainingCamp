@@ -576,12 +576,15 @@ function renderCategoryTable(list) {
       </td>
       <td>
         ${c.is_locked === 1 ? `
-          <button class="btn btn-sm" style="background:#fef2f2; color:#ef4444; border:1px solid #fecaca; padding:4px 10px;" onclick="toggleLockCategory(${c.id})" title="Klik untuk membuka kunci (unlock)">
-            <i class="fa-solid fa-lock"></i> Terkunci (Locked)
+          <button class="btn btn-sm" style="background:#fef2f2; color:#ef4444; border:1px solid #fecaca; padding:4px 10px;" onclick="toggleLockCategory(${c.id})" title="Klik untuk membuka kunci">
+            <i class="fa-solid fa-lock"></i> Terkunci
           </button>
+          <div style="font-size: 0.75rem; color:#b45309; margin-top: 3px;" title="Password untuk user">
+            <i class="fa-solid fa-key"></i> <code>${escapeHtml(c.access_password || 'default admin')}</code>
+          </div>
         ` : `
-          <button class="btn btn-sm" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:4px 10px;" onclick="toggleLockCategory(${c.id})" title="Klik untuk mengunci kategori ini">
-            <i class="fa-solid fa-lock-open"></i> Terbuka (Public)
+          <button class="btn btn-sm" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:4px 10px;" onclick="toggleLockCategory(${c.id})" title="Klik untuk mengunci kategori ini dengan password">
+            <i class="fa-solid fa-lock-open"></i> Terbuka
           </button>
         `}
       </td>
@@ -595,10 +598,36 @@ function renderCategoryTable(list) {
   `).join('');
 }
 
+function toggleCatPasswordGroup() {
+  const isLocked = document.getElementById('catFormLocked').value === '1';
+  const group = document.getElementById('catPasswordGroup');
+  if (group) group.style.display = isLocked ? 'block' : 'none';
+}
+
 async function toggleLockCategory(id) {
+  const cat = allCategories.find(c => c.id === id);
+  if (!cat) return;
+
+  let passwordToSend = undefined;
+  if (cat.is_locked === 0) {
+    const inputPass = prompt(`Kunci kategori "${cat.name}".\nMasukkan kata sandi (password) untuk membuka akses kategori ini bagi pembaca publik:`, cat.access_password || '');
+    if (inputPass === null) return; // User cancel
+    if (!inputPass.trim()) {
+      alert('Password tidak boleh kosong!');
+      return;
+    }
+    passwordToSend = inputPass.trim();
+  } else {
+    if (!confirm(`Buka kunci kategori "${cat.name}" agar dapat diakses bebas oleh semua orang tanpa password?`)) {
+      return;
+    }
+  }
+
   try {
     const res = await fetchAdmin(`/api/admin/categories/${id}/toggle-lock`, {
-      method: 'PATCH'
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_password: passwordToSend })
     });
     const json = await res.json();
     if (json.success) {
@@ -623,6 +652,7 @@ function openCategoryModal(catData = null) {
     document.getElementById('catFormDesc').value = catData.description || '';
     document.getElementById('catFormOrder').value = catData.order_index || 0;
     document.getElementById('catFormLocked').value = catData.is_locked ? '1' : '0';
+    document.getElementById('catFormPassword').value = catData.access_password || '';
   } else {
     document.getElementById('catModalTitle').innerText = 'Tambah Kategori Baru';
     document.getElementById('catFormId').value = '';
@@ -631,7 +661,9 @@ function openCategoryModal(catData = null) {
     document.getElementById('catFormDesc').value = '';
     document.getElementById('catFormOrder').value = allCategories.length + 1;
     document.getElementById('catFormLocked').value = '0';
+    document.getElementById('catFormPassword').value = '';
   }
+  toggleCatPasswordGroup();
   modal.classList.add('active');
 }
 
@@ -668,13 +700,19 @@ async function submitCategory() {
   const description = document.getElementById('catFormDesc').value.trim();
   const order_index = document.getElementById('catFormOrder').value;
   const is_locked = parseInt(document.getElementById('catFormLocked').value) || 0;
+  const access_password = document.getElementById('catFormPassword').value.trim();
 
   if (!name) {
     alert('Nama kategori wajib diisi');
     return;
   }
 
-  const payload = { name, icon, description, order_index, is_locked };
+  if (is_locked === 1 && !access_password) {
+    alert('Silakan masukkan Password Akses Kategori jika kategori dikunci!');
+    return;
+  }
+
+  const payload = { name, icon, description, order_index, is_locked, access_password };
 
   try {
     const url = id ? `/api/admin/categories/${id}` : '/api/admin/categories';

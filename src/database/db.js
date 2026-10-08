@@ -22,7 +22,8 @@ db.exec(`
     icon TEXT DEFAULT 'folder',
     description TEXT,
     order_index INTEGER DEFAULT 0,
-    is_locked INTEGER DEFAULT 0, -- 1 = Terkunci / Lock (Tidak bisa diakses user publik), 0 = Terbuka
+    is_locked INTEGER DEFAULT 0, -- 1 = Terkunci / Lock (Perlu password untuk diakses), 0 = Terbuka
+    access_password TEXT,        -- Password untuk membuka kategori jika terkunci
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -78,6 +79,10 @@ try {
 
 try {
   db.prepare("ALTER TABLE categories ADD COLUMN is_locked INTEGER DEFAULT 0").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE categories ADD COLUMN access_password TEXT").run();
 } catch (e) {}
 
 try {

@@ -524,10 +524,18 @@
 
           <div class="form-group">
             <label for="catFormLocked">Akses Pengguna (Lock Kategori)</label>
-            <select id="catFormLocked" class="form-control">
-              <option value="0">🔓 Terbuka (Dapat diakses seluruh pembaca/user)</option>
-              <option value="1">🔒 Terkunci (Hanya tampil di Admin, disembunyikan dari user)</option>
+            <select id="catFormLocked" class="form-control" onchange="toggleCatPasswordGroup()">
+              <option value="0">🔓 Terbuka (Dapat diakses seluruh pembaca/user tanpa password)</option>
+              <option value="1">🔒 Terkunci (Tampil di publik, tetapi perlu password untuk dibuka)</option>
             </select>
+          </div>
+
+          <div class="form-group" id="catPasswordGroup" style="display: none;">
+            <label for="catFormPassword"><i class="fa-solid fa-key" style="color: #f59e0b;"></i> Password Akses Kategori <span style="color: red;">*</span></label>
+            <input type="text" id="catFormPassword" class="form-control" placeholder="Contoh: modulrahasia2026">
+            <small style="color: #64748b; margin-top: 4px; display: block;">
+              Kategori tetap muncul di beranda publik. Pembaca wajib memasukkan password ini untuk membuka dan membaca seluruh materi tutorial di kategori ini.
+            </small>
           </div>
 
           <div class="modal-footer" style="padding-left: 0; padding-right: 0;">

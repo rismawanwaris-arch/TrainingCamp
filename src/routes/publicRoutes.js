@@ -1,15 +1,66 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const db = require('../database/db');
 
-// GET all categories with count of published tutorials (exclude locked categories for public)
+const UNLOCK_SECRET = process.env.UNLOCK_SECRET || 'trainingcamp_unlock_cat_secret_2026';
+
+function generateUnlockToken(categoryId) {
+  const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 hari
+  const payload = `${categoryId}:${expiresAt}`;
+  const sig = crypto.createHmac('sha256', UNLOCK_SECRET).update(payload).digest('hex');
+  return `${payload}:${sig}`;
+}
+
+function isTokenValidForCategory(token, categoryId) {
+  if (!token || typeof token !== 'string') return false;
+  const parts = token.split(':');
+  if (parts.length !== 3) return false;
+  const [tokenCatId, expiresAtStr, sig] = parts;
+  if (parseInt(tokenCatId) !== parseInt(categoryId)) return false;
+  if (Date.now() > parseInt(expiresAtStr)) return false;
+  const expectedSig = crypto.createHmac('sha256', UNLOCK_SECRET).update(`${tokenCatId}:${expiresAtStr}`).digest('hex');
+  return sig === expectedSig;
+}
+
+function checkCategoryAccess(req, categoryId) {
+  // 1. Cek apakah ada admin session yang valid (Admin selalu memiliki akses)
+  const adminToken = req.headers['x-admin-token'];
+  if (adminToken) {
+    const session = db.prepare('SELECT user_id FROM admin_sessions WHERE token = ?').get(adminToken);
+    if (session) return true;
+  }
+
+  // 2. Cek header unlock kategori (bisa berupa JSON map { [catId]: token } atau string token langsung)
+  const unlockHeader = req.headers['x-unlocked-categories'];
+  if (unlockHeader) {
+    try {
+      const parsed = JSON.parse(unlockHeader);
+      if (parsed && typeof parsed === 'object') {
+        const token = parsed[categoryId];
+        if (isTokenValidForCategory(token, categoryId)) return true;
+      }
+    } catch (e) {
+      if (isTokenValidForCategory(unlockHeader, categoryId)) return true;
+    }
+  }
+
+  const singleToken = req.headers['x-category-token'] || req.query.unlock_token;
+  if (singleToken && isTokenValidForCategory(singleToken, categoryId)) {
+    return true;
+  }
+
+  return false;
+}
+
+// GET all categories with count of published tutorials (semua kategori ditampilkan ke publik)
 router.get('/categories', (req, res) => {
   try {
     const categories = db.prepare(`
-      SELECT c.*, COUNT(t.id) as tutorial_count 
+      SELECT c.id, c.name, c.slug, c.icon, c.description, c.order_index, c.is_locked, c.created_at,
+             COUNT(t.id) as tutorial_count 
       FROM categories c 
       LEFT JOIN tutorials t ON c.id = t.category_id AND t.status = 'published'
-      WHERE c.is_locked = 0
       GROUP BY c.id 
       ORDER BY c.order_index ASC, c.name ASC
     `).all();
@@ -19,15 +70,73 @@ router.get('/categories', (req, res) => {
   }
 });
 
-// GET category by slug with its tutorials
-router.get('/categories/:slug', (req, res) => {
+// POST verify password to unlock a locked category
+router.post('/categories/:id/verify-password', (req, res) => {
   try {
-    const category = db.prepare('SELECT * FROM categories WHERE slug = ?').get(req.params.slug);
+    const catId = req.params.id;
+    const category = db.prepare('SELECT id, name, is_locked, access_password FROM categories WHERE id = ?').get(catId);
     if (!category) {
       return res.status(404).json({ success: false, error: 'Kategori tidak ditemukan' });
     }
+
+    if (category.is_locked === 0) {
+      return res.json({ success: true, message: 'Kategori ini tidak terkunci', unlocked: true });
+    }
+
+    const { password } = req.body || {};
+    if (!password || !password.trim()) {
+      return res.status(400).json({ success: false, error: 'Silakan masukkan password untuk membuka kategori ini' });
+    }
+
+    const inputPass = password.trim();
+    let isMatch = false;
+
+    if (category.access_password && category.access_password.trim()) {
+      isMatch = (inputPass === category.access_password.trim());
+    } else {
+      // Fallback ke password admin jika password khusus kategori belum diset
+      const admin = db.prepare('SELECT password_hash FROM admin_users ORDER BY id ASC LIMIT 1').get();
+      if (admin && db.verifyPassword) {
+        isMatch = db.verifyPassword(inputPass, admin.password_hash);
+      }
+    }
+
+    if (!isMatch) {
+      return res.status(401).json({ success: false, error: 'Password salah! Silakan coba lagi atau tanyakan ke admin.' });
+    }
+
+    const token = generateUnlockToken(category.id);
+    res.json({
+      success: true,
+      message: `Akses kategori "${category.name}" berhasil dibuka!`,
+      token,
+      category_id: category.id
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET category by slug with its tutorials
+router.get('/categories/:slug', (req, res) => {
+  try {
+    const category = db.prepare('SELECT id, name, slug, icon, description, order_index, is_locked FROM categories WHERE slug = ?').get(req.params.slug);
+    if (!category) {
+      return res.status(404).json({ success: false, error: 'Kategori tidak ditemukan' });
+    }
+
     if (category.is_locked === 1) {
-      return res.status(403).json({ success: false, error: 'Kategori ini sedang dikunci oleh administrator' });
+      const hasAccess = checkCategoryAccess(req, category.id);
+      if (!hasAccess) {
+        return res.json({
+          success: true,
+          is_locked: true,
+          data: {
+            ...category,
+            tutorials: []
+          }
+        });
+      }
     }
 
     const tutorials = db.prepare(`
@@ -47,18 +156,31 @@ router.get('/categories/:slug', (req, res) => {
 router.get('/tutorials', (req, res) => {
   try {
     const { q, category_id, tag, sort = 'latest', limit = 20, page = 1 } = req.query;
-    let conditions = ["t.status = 'published'", "c.is_locked = 0"];
+    let conditions = ["t.status = 'published'"];
     let params = [];
+
+    // Jika difilter spesifik per kategori yang terkunci, cek izin akses
+    if (category_id) {
+      const cat = db.prepare('SELECT id, is_locked FROM categories WHERE id = ?').get(category_id);
+      if (cat && cat.is_locked === 1) {
+        const hasAccess = checkCategoryAccess(req, cat.id);
+        if (!hasAccess) {
+          return res.json({
+            success: true,
+            is_locked: true,
+            data: [],
+            pagination: { page: 1, limit: parseInt(limit), total: 0, totalPages: 0 }
+          });
+        }
+      }
+      conditions.push("t.category_id = ?");
+      params.push(category_id);
+    }
 
     if (q) {
       conditions.push("(t.title LIKE ? OR t.summary LIKE ? OR t.content LIKE ? OR t.tags LIKE ?)");
       const term = `%${q}%`;
       params.push(term, term, term, term);
-    }
-
-    if (category_id) {
-      conditions.push("t.category_id = ?");
-      params.push(category_id);
     }
 
     if (tag) {
@@ -78,7 +200,7 @@ router.get('/tutorials', (req, res) => {
 
     const tutorials = db.prepare(`
       SELECT t.id, t.title, t.slug, t.summary, t.thumbnail, t.tags, t.views_count, t.created_at, t.updated_at,
-             c.name as category_name, c.slug as category_slug, c.icon as category_icon
+             c.id as category_id, c.name as category_name, c.slug as category_slug, c.icon as category_icon, c.is_locked as category_is_locked
       FROM tutorials t
       JOIN categories c ON t.category_id = c.id
       ${whereClause}
@@ -123,7 +245,23 @@ router.get('/tutorials/:slug', (req, res) => {
     }
 
     if (tutorial.is_locked === 1) {
-      return res.status(403).json({ success: false, error: 'Tutorial ini berada di dalam kategori yang dikunci' });
+      const hasAccess = checkCategoryAccess(req, tutorial.category_id);
+      if (!hasAccess) {
+        return res.json({
+          success: true,
+          is_locked: true,
+          data: {
+            id: tutorial.id,
+            title: tutorial.title,
+            slug: tutorial.slug,
+            category_id: tutorial.category_id,
+            category_name: tutorial.category_name,
+            category_icon: tutorial.category_icon,
+            created_at: tutorial.created_at,
+            summary: tutorial.summary
+          }
+        });
+      }
     }
 
     // Identifikasi pengunjung (via header x-visitor-id, cookie, atau IP + User-Agent)

@@ -117,8 +117,122 @@
     </div>
   </footer>
 
+  <!-- MODAL: UNLOCK CATEGORY PASSWORD -->
+  <div id="unlockModal" class="pass-modal-overlay" style="display: none;">
+    <div class="pass-modal-box">
+      <button class="pass-modal-close" onclick="closeUnlockModal()">&times;</button>
+      <div class="pass-modal-icon">
+        <i class="fa-solid fa-lock"></i>
+      </div>
+      <h3 class="pass-modal-title" id="unlockModalTitle">Kategori Terkunci</h3>
+      <p class="pass-modal-desc" id="unlockModalDesc">
+        Kategori ini dilindungi kata sandi. Masukkan password untuk mengakses seluruh tutorial di dalamnya.
+      </p>
+      <form id="unlockForm" onsubmit="event.preventDefault(); submitCategoryUnlock();">
+        <input type="hidden" id="unlockCatId" value="">
+        <input type="hidden" id="unlockCatName" value="">
+        <div class="pass-input-group">
+          <input type="password" id="unlockPasswordInput" placeholder="Masukkan password kategori..." required autofocus>
+          <button type="button" class="toggle-pass-btn" onclick="togglePasswordVisibility('unlockPasswordInput', this)" title="Tampilkan/Sembunyikan">
+            <i class="fa-regular fa-eye"></i>
+          </button>
+        </div>
+        <div id="unlockErrorMsg" class="pass-error-msg"></div>
+        <button type="submit" id="unlockSubmitBtn" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px; background: #f59e0b; border: none; font-size: 0.95rem;">
+          <i class="fa-solid fa-key"></i> Buka Akses Sekarang
+        </button>
+      </form>
+    </div>
+  </div>
+
   <script>
     let currentCategoryId = null;
+
+    function getUnlockedCategories() {
+      try {
+        return JSON.parse(localStorage.getItem('tc_unlocked_categories') || '{}');
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function isCategoryUnlocked(catId) {
+      const unlocked = getUnlockedCategories();
+      return !!unlocked[catId];
+    }
+
+    function saveUnlockedCategory(catId, token) {
+      const unlocked = getUnlockedCategories();
+      unlocked[catId] = token;
+      localStorage.setItem('tc_unlocked_categories', JSON.stringify(unlocked));
+    }
+
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '<i class="fa-regular fa-eye-slash"></i>';
+      } else {
+        input.type = 'password';
+        btn.innerHTML = '<i class="fa-regular fa-eye"></i>';
+      }
+    }
+
+    function openUnlockModal(catId, catName) {
+      document.getElementById('unlockCatId').value = catId;
+      document.getElementById('unlockCatName').value = catName;
+      document.getElementById('unlockModalTitle').innerHTML = `Akses Kategori "${escapeHtml(catName)}"`;
+      document.getElementById('unlockModalDesc').innerHTML = `Modul ini dilindungi kata sandi. Silakan masukkan password untuk membuka seluruh panduan tutorial di dalamnya.`;
+      document.getElementById('unlockPasswordInput').value = '';
+      document.getElementById('unlockErrorMsg').style.display = 'none';
+      document.getElementById('unlockSubmitBtn').disabled = false;
+      document.getElementById('unlockSubmitBtn').innerHTML = '<i class="fa-solid fa-key"></i> Buka Akses Sekarang';
+      document.getElementById('unlockModal').style.display = 'flex';
+      setTimeout(() => document.getElementById('unlockPasswordInput').focus(), 100);
+    }
+
+    function closeUnlockModal() {
+      document.getElementById('unlockModal').style.display = 'none';
+    }
+
+    async function submitCategoryUnlock() {
+      const catId = document.getElementById('unlockCatId').value;
+      const catName = document.getElementById('unlockCatName').value;
+      const password = document.getElementById('unlockPasswordInput').value;
+      const errBox = document.getElementById('unlockErrorMsg');
+      const btn = document.getElementById('unlockSubmitBtn');
+
+      errBox.style.display = 'none';
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memverifikasi...';
+
+      try {
+        const res = await fetch(`/api/categories/${catId}/verify-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+        const json = await res.json();
+
+        if (json.success && json.token) {
+          saveUnlockedCategory(catId, json.token);
+          closeUnlockModal();
+          // Muat ulang kategori & tampilkan tutorial kategori
+          loadCategories();
+          filterByCategory(catId, catName, 0);
+        } else {
+          errBox.style.display = 'block';
+          errBox.innerText = json.error || 'Password salah!';
+        }
+      } catch (err) {
+        errBox.style.display = 'block';
+        errBox.innerText = 'Terjadi kesalahan: ' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-key"></i> Buka Akses Sekarang';
+      }
+    }
 
     async function loadCategories() {
       try {
@@ -126,26 +240,53 @@
         const data = await res.json();
         if (data.success) {
           const container = document.getElementById('categoryGrid');
-          container.innerHTML = data.data.map(cat => `
-            <div class="category-card" onclick="filterByCategory(${cat.id}, '${escapeHtml(cat.name)}')">
-              <div class="cat-header">
-                <div class="cat-icon"><i class="${cat.icon || 'fa-solid fa-folder'}"></i></div>
-                <div>
-                  <div class="cat-title">${escapeHtml(cat.name)}</div>
-                  <span class="cat-badge">${cat.tutorial_count} tutorial</span>
+          container.innerHTML = data.data.map(cat => {
+            const isLocked = cat.is_locked === 1;
+            const isUnlocked = isCategoryUnlocked(cat.id);
+
+            let badgeHtml = `<span class="cat-badge">${cat.tutorial_count} tutorial</span>`;
+            let footerHtml = `<span>Jelajahi Panduan</span><i class="fa-solid fa-arrow-right"></i>`;
+            let cardClass = 'category-card';
+
+            if (isLocked) {
+              if (isUnlocked) {
+                badgeHtml = `<span class="cat-badge unlocked"><i class="fa-solid fa-lock-open"></i> Akses Terbuka (${cat.tutorial_count})</span>`;
+                footerHtml = `<span>Jelajahi Panduan</span><i class="fa-solid fa-arrow-right"></i>`;
+              } else {
+                cardClass = 'category-card locked';
+                badgeHtml = `<span class="cat-badge locked"><i class="fa-solid fa-lock"></i> Terkunci</span>`;
+                footerHtml = `<span><i class="fa-solid fa-key"></i> Buka dengan Password</span><i class="fa-solid fa-lock"></i>`;
+              }
+            }
+
+            return `
+              <div class="${cardClass}" onclick="handleCategoryClick(${cat.id}, '${escapeHtml(cat.name)}', ${isLocked ? 1 : 0})">
+                <div class="cat-header">
+                  <div class="cat-icon"><i class="${cat.icon || 'fa-solid fa-folder'}"></i></div>
+                  <div>
+                    <div class="cat-title">${escapeHtml(cat.name)}</div>
+                    ${badgeHtml}
+                  </div>
+                </div>
+                <div class="cat-desc">${escapeHtml(cat.description || 'Kumpulan tutorial mengenai modul ' + cat.name)}</div>
+                <div class="cat-footer ${isLocked && !isUnlocked ? 'locked' : ''}">
+                  ${footerHtml}
                 </div>
               </div>
-              <div class="cat-desc">${escapeHtml(cat.description || 'Kumpulan tutorial mengenai modul ' + cat.name)}</div>
-              <div class="cat-footer">
-                <span>Jelajahi Panduan</span>
-                <i class="fa-solid fa-arrow-right"></i>
-              </div>
-            </div>
-          `).join('');
+            `;
+          }).join('');
         }
       } catch (err) {
         console.error('Error loading categories:', err);
       }
+    }
+
+    function handleCategoryClick(catId, catName, isLocked) {
+      if (isLocked === 1 && !isCategoryUnlocked(catId)) {
+        openUnlockModal(catId, catName);
+        return;
+      }
+      filterByCategory(catId, catName, isLocked);
     }
 
     async function loadTutorials(q = '') {
@@ -155,7 +296,11 @@
         if (q) url += `&q=${encodeURIComponent(q)}`;
         if (currentCategoryId) url += `&category_id=${currentCategoryId}`;
 
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          headers: {
+            'x-unlocked-categories': JSON.stringify(getUnlockedCategories())
+          }
+        });
         const data = await res.json();
         if (data.success) {
           const container = document.getElementById('tutorialGrid');
@@ -170,19 +315,28 @@
             return;
           }
 
-          container.innerHTML = data.data.map(t => `
-            <a href="/tutorial/${t.slug}" class="tutorial-card">
-              <div class="tutorial-card-body">
-                <span class="tut-cat-pill"><i class="${t.category_icon || 'fa-solid fa-folder'}"></i> ${escapeHtml(t.category_name)}</span>
-                <h3 class="tut-title">${escapeHtml(t.title)}</h3>
-                <p class="tut-summary">${escapeHtml(t.summary || '')}</p>
-                <div class="tut-meta">
-                  <span><i class="fa-regular fa-clock"></i> ${new Date(t.created_at).toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'})}</span>
-                  <span><i class="fa-regular fa-eye"></i> ${t.views_count} dilihat</span>
+          container.innerHTML = data.data.map(t => {
+            const isCatLocked = t.category_is_locked === 1;
+            const isCatUnlocked = isCategoryUnlocked(t.category_id);
+            const showLockBadge = isCatLocked && !isCatUnlocked;
+
+            return `
+              <a href="/tutorial/${t.slug}" class="tutorial-card">
+                <div class="tutorial-card-body">
+                  <span class="tut-cat-pill ${showLockBadge ? 'locked' : ''}">
+                    <i class="${showLockBadge ? 'fa-solid fa-lock' : (t.category_icon || 'fa-solid fa-folder')}"></i> 
+                    ${escapeHtml(t.category_name)} ${showLockBadge ? '(Terkunci)' : ''}
+                  </span>
+                  <h3 class="tut-title">${escapeHtml(t.title)}</h3>
+                  <p class="tut-summary">${escapeHtml(t.summary || '')}</p>
+                  <div class="tut-meta">
+                    <span><i class="fa-regular fa-clock"></i> ${new Date(t.created_at).toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'})}</span>
+                    <span><i class="fa-regular fa-eye"></i> ${t.views_count} dilihat</span>
+                  </div>
                 </div>
-              </div>
-            </a>
-          `).join('');
+              </a>
+            `;
+          }).join('');
         }
       } catch (err) {
         console.error('Error loading tutorials:', err);
@@ -207,7 +361,7 @@
       handleSearch();
     }
 
-    function filterByCategory(catId, catName) {
+    function filterByCategory(catId, catName, isLocked = 0) {
       currentCategoryId = catId;
       document.getElementById('searchResultBanner').style.display = 'flex';
       document.getElementById('searchKeyword').innerText = `Kategori: ${catName}`;

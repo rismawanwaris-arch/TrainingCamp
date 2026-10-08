@@ -305,10 +305,72 @@
         document.getElementById('articleCard').style.display = 'block';
         document.getElementById('articleSidebar').style.display = 'flex';
 
+        // Aktifkan fitur zoom in & zoom out pada semua gambar tutorial
+        initImageZoom();
+
       } catch (err) {
         console.error(err);
         document.getElementById('loading').innerHTML = `<p style="color: red;">Gagal memuat artikel.</p>`;
       }
+    }
+
+    // ----------------- FITUR ZOOM GAMBAR TUTORIAL -----------------
+    function initImageZoom() {
+      let overlay = document.getElementById('imageZoomOverlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'imageZoomOverlay';
+        overlay.className = 'image-zoom-overlay';
+        overlay.innerHTML = `
+          <button class="image-zoom-close-btn" title="Tutup (ESC)">&times;</button>
+          <img id="imageZoomImg" src="" alt="Preview Gambar">
+          <div class="image-zoom-hint"><i class="fa-solid fa-magnifying-glass-minus"></i> Klik di mana saja untuk memperkecil (zoom out)</div>
+        `;
+        document.body.appendChild(overlay);
+
+        // Klik sembarang (di background maupun di gambar) akan langsung zoom out
+        overlay.addEventListener('click', () => {
+          closeImageZoom();
+        });
+
+        // Tombol Escape di keyboard untuk zoom out
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && overlay.classList.contains('active')) {
+            closeImageZoom();
+          }
+        });
+      }
+
+      // Pasang event listener ke semua gambar materi tutorial dan gambar thumbnail
+      const zoomableImages = document.querySelectorAll('#tutContent img, #tutThumbnail');
+      zoomableImages.forEach(img => {
+        img.title = 'Klik untuk memperbesar gambar (zoom in)';
+        img.removeEventListener('click', handleImageZoomClick);
+        img.addEventListener('click', handleImageZoomClick);
+      });
+    }
+
+    function handleImageZoomClick(e) {
+      e.stopPropagation();
+      openImageZoom(e.target.src, e.target.alt || 'Gambar Panduan');
+    }
+
+    function openImageZoom(src, alt = '') {
+      const overlay = document.getElementById('imageZoomOverlay');
+      const zoomImg = document.getElementById('imageZoomImg');
+      if (!overlay || !zoomImg) return;
+
+      zoomImg.src = src;
+      zoomImg.alt = alt;
+      overlay.classList.add('active');
+      document.body.style.overflow = 'hidden'; // Kunci scroll background
+    }
+
+    function closeImageZoom() {
+      const overlay = document.getElementById('imageZoomOverlay');
+      if (!overlay) return;
+      overlay.classList.remove('active');
+      document.body.style.overflow = ''; // Pulihkan scroll background
     }
 
     loadArticle();

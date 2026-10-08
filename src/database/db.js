@@ -63,6 +63,8 @@ db.exec(`
     FOREIGN KEY (tutorial_id) REFERENCES tutorials(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_views_lookup ON tutorial_views(tutorial_id, visitor_id, viewed_at);
+  CREATE INDEX IF NOT EXISTS idx_views_ip ON tutorial_views(ip_address, viewed_at);
+  CREATE INDEX IF NOT EXISTS idx_views_time ON tutorial_views(viewed_at);
 
   CREATE TABLE IF NOT EXISTS admin_sessions (
     token TEXT PRIMARY KEY,

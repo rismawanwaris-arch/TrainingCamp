@@ -302,6 +302,36 @@ router.post('/upload-image', upload.single('image'), (req, res) => {
   res.json({ success: true, url: fileUrl });
 });
 
+// Helper User-Agent parser ringan
+function parseUserAgent(ua) {
+  if (!ua || typeof ua !== 'string') return { browser: 'Browser Lain', os: 'OS Lain', device: 'Desktop' };
+  let browser = 'Browser Lain';
+  let os = 'OS Lain';
+  let device = 'Desktop';
+
+  if (/mobile|android|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua)) {
+    device = /ipad|tablet/i.test(ua) ? 'Tablet' : 'Mobile';
+  }
+
+  // Detect Browser
+  if (/edg\//i.test(ua)) browser = 'Edge';
+  else if (/opr\/|opera/i.test(ua)) browser = 'Opera';
+  else if (/chrome|crios/i.test(ua)) browser = 'Chrome';
+  else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
+  else if (/safari/i.test(ua) && !/chrome/i.test(ua)) browser = 'Safari';
+  else if (/msie|trident/i.test(ua)) browser = 'Internet Explorer';
+
+  // Detect OS
+  if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+  else if (/android/i.test(ua)) os = 'Android';
+  else if (/windows nt 10/i.test(ua)) os = 'Windows 10/11';
+  else if (/windows/i.test(ua)) os = 'Windows';
+  else if (/macintosh|mac os x/i.test(ua)) os = 'macOS';
+  else if (/linux/i.test(ua)) os = 'Linux';
+
+  return { browser, os, device };
+}
+
 // ----------------- DASHBOARD STATS -----------------
 router.get('/dashboard-stats', (req, res) => {
   try {
@@ -313,7 +343,9 @@ router.get('/dashboard-stats', (req, res) => {
 
     // Statistik riil pembaca & pengunjung unik dari tabel tutorial_views
     const totalUniqueVisitors = db.prepare("SELECT COUNT(DISTINCT visitor_id) as count FROM tutorial_views").get().count;
+    const totalUniqueIps = db.prepare("SELECT COUNT(DISTINCT ip_address) as count FROM tutorial_views").get().count;
     const todayViews = db.prepare("SELECT COUNT(*) as count FROM tutorial_views WHERE date(viewed_at) = date('now')").get().count;
+    const activeIpsCount = db.prepare("SELECT COUNT(DISTINCT ip_address) as count FROM tutorial_views WHERE viewed_at >= datetime('now', '-15 minutes')").get().count;
 
     const topTutorials = db.prepare(`
       SELECT t.id, t.title, t.slug, t.views_count, c.name as category_name
@@ -331,15 +363,27 @@ router.get('/dashboard-stats', (req, res) => {
       LIMIT 5
     `).all();
 
+    // Top IP paling aktif sepanjang masa
+    const topIpRow = db.prepare(`
+      SELECT ip_address, COUNT(*) as hits
+      FROM tutorial_views
+      GROUP BY ip_address
+      ORDER BY hits DESC
+      LIMIT 1
+    `).get();
+
     // Log riil kunjungan terbaru
     const recentViewLogs = db.prepare(`
-      SELECT v.viewed_at, v.ip_address, t.title as tutorial_title, t.slug as tutorial_slug, c.name as category_name
+      SELECT v.viewed_at, v.ip_address, v.user_agent, t.title as tutorial_title, t.slug as tutorial_slug, c.name as category_name
       FROM tutorial_views v
       JOIN tutorials t ON v.tutorial_id = t.id
       JOIN categories c ON t.category_id = c.id
       ORDER BY v.viewed_at DESC
-      LIMIT 5
-    `).all();
+      LIMIT 8
+    `).all().map(l => ({
+      ...l,
+      parsed_ua: parseUserAgent(l.user_agent)
+    }));
 
     res.json({
       success: true,
@@ -350,10 +394,290 @@ router.get('/dashboard-stats', (req, res) => {
         totalCategories,
         totalViews,
         totalUniqueVisitors,
+        totalUniqueIps,
         todayViews,
+        activeIpsCount,
+        topIp: topIpRow || null,
         topTutorials,
         recentTutorials,
         recentViewLogs
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ----------------- IP ANALYTICS & LIVE TRACKING ROUTES -----------------
+// 1. IP Analytics (IP teraktif yang sering akses panduan/tutorial)
+router.get('/ip-analytics', (req, res) => {
+  try {
+    const { time_range = 'all', search, category_id } = req.query;
+    const conditions = [];
+    const params = [];
+
+    if (time_range === 'today') {
+      conditions.push("date(v.viewed_at) = date('now')");
+    } else if (time_range === '24h') {
+      conditions.push("v.viewed_at >= datetime('now', '-24 hours')");
+    } else if (time_range === '7d') {
+      conditions.push("v.viewed_at >= datetime('now', '-7 days')");
+    } else if (time_range === '30d') {
+      conditions.push("v.viewed_at >= datetime('now', '-30 days')");
+    }
+
+    if (search && search.trim()) {
+      conditions.push("(v.ip_address LIKE ? OR t.title LIKE ?)");
+      const term = `%${search.trim()}%`;
+      params.push(term, term);
+    }
+
+    if (category_id) {
+      conditions.push("t.category_id = ?");
+      params.push(category_id);
+    }
+
+    const whereClause = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    // Summary KPI
+    const totalViewsCount = db.prepare(`
+      SELECT COUNT(v.id) as count 
+      FROM tutorial_views v 
+      JOIN tutorials t ON v.tutorial_id = t.id
+      ${whereClause}
+    `).get(...params).count;
+
+    const uniqueIpsCount = db.prepare(`
+      SELECT COUNT(DISTINCT v.ip_address) as count 
+      FROM tutorial_views v 
+      JOIN tutorials t ON v.tutorial_id = t.id
+      ${whereClause}
+    `).get(...params).count;
+
+    const activeNowCount = db.prepare(`
+      SELECT COUNT(DISTINCT v.ip_address) as count 
+      FROM tutorial_views v 
+      WHERE v.viewed_at >= datetime('now', '-15 minutes')
+    `).get().count;
+
+    // Top IP ranking
+    const topIps = db.prepare(`
+      SELECT 
+        v.ip_address,
+        COUNT(v.id) as total_views,
+        COUNT(DISTINCT v.tutorial_id) as unique_tutorials_count,
+        MAX(v.viewed_at) as last_viewed_at,
+        MIN(v.viewed_at) as first_viewed_at,
+        (
+          SELECT ua.user_agent 
+          FROM tutorial_views ua 
+          WHERE ua.ip_address = v.ip_address 
+          ORDER BY ua.viewed_at DESC 
+          LIMIT 1
+        ) as latest_user_agent
+      FROM tutorial_views v
+      JOIN tutorials t ON v.tutorial_id = t.id
+      ${whereClause}
+      GROUP BY v.ip_address
+      ORDER BY total_views DESC, last_viewed_at DESC
+      LIMIT 50
+    `).all(...params);
+
+    const getFavTutorial = db.prepare(`
+      SELECT t.title, t.slug, c.name as category_name, COUNT(v2.id) as hits
+      FROM tutorial_views v2
+      JOIN tutorials t ON v2.tutorial_id = t.id
+      JOIN categories c ON t.category_id = c.id
+      WHERE v2.ip_address = ?
+      GROUP BY v2.tutorial_id
+      ORDER BY hits DESC, MAX(v2.viewed_at) DESC
+      LIMIT 1
+    `);
+
+    const enrichedTopIps = topIps.map(ipRow => {
+      const fav = getFavTutorial.get(ipRow.ip_address);
+      return {
+        ...ipRow,
+        parsed_ua: parseUserAgent(ipRow.latest_user_agent),
+        favorite_tutorial: fav ? { title: fav.title, slug: fav.slug, hits: fav.hits } : null,
+        favorite_category: fav ? fav.category_name : '-'
+      };
+    });
+
+    // Breakdown per tutorial (tutorial apa saja yang paling banyak diakses IP)
+    const tutorialStats = db.prepare(`
+      SELECT 
+        t.id, t.title, t.slug, c.name as category_name,
+        COUNT(v.id) as total_hits,
+        COUNT(DISTINCT v.ip_address) as unique_ips_count,
+        MAX(v.viewed_at) as last_hit_at
+      FROM tutorials t
+      JOIN categories c ON t.category_id = c.id
+      JOIN tutorial_views v ON t.id = v.tutorial_id
+      ${whereClause}
+      GROUP BY t.id
+      ORDER BY total_hits DESC
+      LIMIT 20
+    `).all(...params);
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          total_views: totalViewsCount,
+          unique_ips: uniqueIpsCount,
+          active_now: activeNowCount,
+          top_ip: enrichedTopIps.length > 0 ? enrichedTopIps[0] : null
+        },
+        top_ips: enrichedTopIps,
+        tutorial_stats: tutorialStats
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2. Real-time Live Stream (Log kunjungan ter-update)
+router.get('/ip-live-stream', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 40;
+    const sinceId = req.query.since_id ? parseInt(req.query.since_id) : null;
+
+    let query = `
+      SELECT 
+        v.id,
+        v.viewed_at,
+        v.ip_address,
+        v.user_agent,
+        t.id as tutorial_id,
+        t.title as tutorial_title,
+        t.slug as tutorial_slug,
+        c.id as category_id,
+        c.name as category_name
+      FROM tutorial_views v
+      JOIN tutorials t ON v.tutorial_id = t.id
+      JOIN categories c ON t.category_id = c.id
+    `;
+    const params = [];
+
+    if (sinceId) {
+      query += ` WHERE v.id > ? ORDER BY v.id DESC LIMIT ?`;
+      params.push(sinceId, limit);
+    } else {
+      query += ` ORDER BY v.id DESC LIMIT ?`;
+      params.push(limit);
+    }
+
+    const rawLogs = db.prepare(query).all(...params);
+    const logs = rawLogs.map(l => ({
+      ...l,
+      parsed_ua: parseUserAgent(l.user_agent)
+    }));
+
+    const activeUsers5m = db.prepare(`
+      SELECT COUNT(DISTINCT ip_address) as count 
+      FROM tutorial_views 
+      WHERE viewed_at >= datetime('now', '-5 minutes')
+    `).get().count;
+
+    const todayViews = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM tutorial_views 
+      WHERE date(viewed_at) = date('now')
+    `).get().count;
+
+    const uniqueIpsToday = db.prepare(`
+      SELECT COUNT(DISTINCT ip_address) as count 
+      FROM tutorial_views 
+      WHERE date(viewed_at) = date('now')
+    `).get().count;
+
+    res.json({
+      success: true,
+      data: {
+        logs,
+        active_users_5m: activeUsers5m,
+        today_views: todayViews,
+        unique_ips_today: uniqueIpsToday,
+        server_time: new Date().toISOString()
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3. Detail Riwayat IP Spesifik (Inspect satu IP)
+router.get('/ip-details/:ip', (req, res) => {
+  try {
+    const targetIp = req.params.ip;
+    if (!targetIp) {
+      return res.status(400).json({ success: false, error: 'Alamat IP diperlukan' });
+    }
+
+    const summary = db.prepare(`
+      SELECT 
+        COUNT(v.id) as total_views,
+        COUNT(DISTINCT v.tutorial_id) as unique_tutorials,
+        MIN(v.viewed_at) as first_seen,
+        MAX(v.viewed_at) as last_seen,
+        (
+          SELECT ua.user_agent 
+          FROM tutorial_views ua 
+          WHERE ua.ip_address = ? 
+          ORDER BY ua.viewed_at DESC 
+          LIMIT 1
+        ) as latest_user_agent
+      FROM tutorial_views v
+      WHERE v.ip_address = ?
+    `).get(targetIp, targetIp);
+
+    if (!summary || summary.total_views === 0) {
+      return res.status(404).json({ success: false, error: 'Tidak ada riwayat aktivitas untuk IP ini' });
+    }
+
+    // Breakdown tutorial yang diakses IP ini
+    const tutorialBreakdown = db.prepare(`
+      SELECT 
+        t.id, t.title, t.slug, c.name as category_name,
+        COUNT(v.id) as hits,
+        MAX(v.viewed_at) as last_accessed
+      FROM tutorial_views v
+      JOIN tutorials t ON v.tutorial_id = t.id
+      JOIN categories c ON t.category_id = c.id
+      WHERE v.ip_address = ?
+      GROUP BY t.id
+      ORDER BY hits DESC, last_accessed DESC
+    `).all(targetIp);
+
+    // Riwayat kronologis (100 log terakhir)
+    const historyLogs = db.prepare(`
+      SELECT 
+        v.id, v.viewed_at, v.user_agent,
+        t.title as tutorial_title, t.slug as tutorial_slug,
+        c.name as category_name
+      FROM tutorial_views v
+      JOIN tutorials t ON v.tutorial_id = t.id
+      JOIN categories c ON t.category_id = c.id
+      WHERE v.ip_address = ?
+      ORDER BY v.viewed_at DESC
+      LIMIT 100
+    `).all(targetIp);
+
+    res.json({
+      success: true,
+      data: {
+        ip: targetIp,
+        summary: {
+          ...summary,
+          parsed_ua: parseUserAgent(summary.latest_user_agent)
+        },
+        tutorials: tutorialBreakdown,
+        history: historyLogs.map(h => ({
+          ...h,
+          parsed_ua: parseUserAgent(h.user_agent)
+        }))
       }
     });
   } catch (err) {

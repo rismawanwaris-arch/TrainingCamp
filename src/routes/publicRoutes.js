@@ -5,6 +5,24 @@ const db = require('../database/db');
 
 const UNLOCK_SECRET = process.env.UNLOCK_SECRET || 'trainingcamp_unlock_cat_secret_2026';
 
+function getClientIp(req) {
+  let ip = req.headers['cf-connecting-ip'] || 
+           req.headers['x-real-ip'] || 
+           (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : null) || 
+           req.ip || 
+           req.socket?.remoteAddress || 
+           '';
+  if (typeof ip === 'string') {
+    if (ip.startsWith('::ffff:')) {
+      ip = ip.substring(7);
+    }
+    if (ip === '::1') {
+      ip = '127.0.0.1';
+    }
+  }
+  return ip || '127.0.0.1';
+}
+
 function generateUnlockToken(categoryId) {
   const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 hari
   const payload = `${categoryId}:${expiresAt}`;
@@ -265,17 +283,17 @@ router.get('/tutorials/:slug', (req, res) => {
     }
 
     // Identifikasi pengunjung (via header x-visitor-id, cookie, atau IP + User-Agent)
-    const visitorId = req.headers['x-visitor-id'] || req.ip || 'anonymous';
-    const ipAddress = req.ip || req.connection.remoteAddress;
+    const ipAddress = getClientIp(req);
+    const visitorId = req.headers['x-visitor-id'] || ipAddress || 'anonymous';
     const userAgent = req.headers['user-agent'] || '';
 
-    // Cek apakah pengunjung ini sudah membaca tutorial ini dalam kurun waktu 30 menit terakhir
-    // Ini mencegah spam refresh (F5 berkali-kali) agar angka pembaca benar-benar REAL
+    // Cek apakah pengunjung ini sudah membaca tutorial ini dalam kurun waktu 2 menit terakhir
+    // Ini mencegah spam refresh (F5 berkali-kali) agar angka pembaca akurat dan live tracking responsif
     const recentView = db.prepare(`
       SELECT id FROM tutorial_views
-      WHERE tutorial_id = ? AND visitor_id = ?
-        AND viewed_at >= datetime('now', '-30 minutes')
-    `).get(tutorial.id, visitorId);
+      WHERE tutorial_id = ? AND (visitor_id = ? OR ip_address = ?)
+        AND viewed_at >= datetime('now', '-2 minutes')
+    `).get(tutorial.id, visitorId, ipAddress);
 
     if (!recentView) {
       // Catat log view baru

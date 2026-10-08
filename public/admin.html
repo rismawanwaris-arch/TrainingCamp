@@ -29,6 +29,12 @@
       <li class="admin-nav-item active" id="nav-dashboard">
         <a href="#" onclick="switchTab('dashboard')"><i class="fa-solid fa-chart-pie"></i> Ringkasan Dashboard</a>
       </li>
+      <li class="admin-nav-item" id="nav-live-tracking">
+        <a href="#" onclick="switchTab('live-tracking')">
+          <i class="fa-solid fa-tower-broadcast"></i> Live Tracking IP
+          <span class="live-indicator-dot"></span>
+        </a>
+      </li>
       <li class="admin-nav-item" id="nav-tutorials">
         <a href="#" onclick="switchTab('tutorials')"><i class="fa-solid fa-file-lines"></i> Kelola Tutorial</a>
       </li>
@@ -113,6 +119,13 @@
               <div class="stat-lbl">Pengunjung Unik Riil</div>
             </div>
           </div>
+          <div class="stat-card" style="cursor: pointer;" onclick="switchTab('live-tracking')" title="Klik untuk analisa live IP">
+            <div class="stat-icon purple" style="background:#fdf4ff; color:#a855f7;"><i class="fa-solid fa-tower-broadcast"></i></div>
+            <div class="stat-data">
+              <div class="stat-val" id="statTopIp" style="font-size:1.15rem; word-break:break-all;">-</div>
+              <div class="stat-lbl">IP Teraktif <span style="color:#a855f7; font-weight:600;">(Lihat Live &rarr;)</span></div>
+            </div>
+          </div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
@@ -163,17 +176,23 @@
         <!-- REAL-TIME VISITOR ACTIVITY LOG -->
         <div class="admin-card" style="margin-top: 24px;">
           <div class="admin-card-header">
-            <h3><i class="fa-solid fa-rss" style="color: #10b981;"></i> Aktivitas Kunjungan Pembaca Riil (Real-Time)</h3>
-            <span class="badge" style="background:#dcfce7; color:#15803d; padding:4px 10px; border-radius:20px; font-size:0.8rem; font-weight:600;">Live Real Tracking</span>
+            <div>
+              <h3><i class="fa-solid fa-rss" style="color: #10b981;"></i> Aktivitas Kunjungan Pembaca Riil (Real-Time)</h3>
+              <span class="badge" style="background:#dcfce7; color:#15803d; padding:4px 10px; border-radius:20px; font-size:0.8rem; font-weight:600; margin-top:4px; display:inline-block;">Live Real Tracking</span>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="switchTab('live-tracking')">
+              <i class="fa-solid fa-chart-line"></i> Buka Menu Analisa Live IP &rarr;
+            </button>
           </div>
           <div class="table-responsive">
             <table class="admin-table">
               <thead>
                 <tr>
                   <th>Waktu Kunjungan</th>
+                  <th>IP Pengunjung</th>
+                  <th>Perangkat / Browser</th>
                   <th>Tutorial yang Dibaca</th>
                   <th>Kategori</th>
-                  <th>IP Pengunjung</th>
                 </tr>
               </thead>
               <tbody id="dashboardVisitorLogsTable">
@@ -182,6 +201,171 @@
             </table>
           </div>
         </div>
+      </div>
+
+      <!-- TAB: LIVE TRACKING & IP ANALYTICS -->
+      <div id="tab-live-tracking" class="tab-pane" style="display: none;">
+        
+        <!-- TOP CONTROL BAR -->
+        <div class="admin-card" style="margin-bottom: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span class="live-badge">
+                <span class="live-indicator-dot" style="margin: 0;"></span>
+                <span id="liveStatusText">Live Tracking Aktif</span>
+              </span>
+              <span style="color: #64748b; font-size: 0.85rem;" id="liveLastUpdated">Pembaruan: Baru saja</span>
+            </div>
+
+            <!-- TIME RANGE FILTER PILLS -->
+            <div class="filter-pills" id="timeFilterPills">
+              <button class="filter-pill active" onclick="setIpTimeFilter('all', this)">Semua Waktu</button>
+              <button class="filter-pill" onclick="setIpTimeFilter('today', this)">Hari Ini</button>
+              <button class="filter-pill" onclick="setIpTimeFilter('24h', this)">24 Jam</button>
+              <button class="filter-pill" onclick="setIpTimeFilter('7d', this)">7 Hari</button>
+            </div>
+
+            <!-- REFRESH CONTROLS -->
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <div class="live-toggle-wrapper" title="Otomatis memperbarui data setiap 4 detik" style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.85rem; color: #475569; font-weight: 500;">Auto-Refresh:</span>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="autoRefreshToggle" checked onchange="toggleAutoRefresh(this.checked)">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="manualRefreshLiveIp()" id="btnManualRefresh">
+                <i class="fa-solid fa-rotate"></i> Refresh Sekarang
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STATS KPI CARDS -->
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 24px;">
+          <div class="stat-card">
+            <div class="stat-icon blue"><i class="fa-solid fa-eye"></i></div>
+            <div class="stat-data">
+              <div class="stat-val" id="ipStatTotalHits">0</div>
+              <div class="stat-lbl">Total Hits / Akses</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon purple"><i class="fa-solid fa-network-wired"></i></div>
+            <div class="stat-data">
+              <div class="stat-val" id="ipStatUniqueIps">0</div>
+              <div class="stat-lbl">Total IP Unik</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green"><i class="fa-solid fa-circle-nodes"></i></div>
+            <div class="stat-data">
+              <div class="stat-val" id="ipStatActiveNow">0</div>
+              <div class="stat-lbl">IP Aktif (15 Mnt)</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber"><i class="fa-solid fa-trophy"></i></div>
+            <div class="stat-data">
+              <div class="stat-val" id="ipStatTopIp" style="font-size: 1.15rem; word-break: break-all;">-</div>
+              <div class="stat-lbl">IP Paling Sering Akses</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 1: PERINGKAT IP YANG SERING MENGAKSES PANDUAN & TUTORIAL -->
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <div>
+              <h3><i class="fa-solid fa-ranking-star" style="color: #f59e0b;"></i> Peringkat IP yang Sering Mengakses Panduan</h3>
+              <p style="font-size: 0.85rem; color: #64748b; margin-top: 4px; margin-bottom: 0;">
+                Daftar alamat IP pengakses teratas, frekuensi kunjungan, dan materi tutorial yang paling sering dibuka.
+              </p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input type="text" id="ipFilterSearch" placeholder="Cari IP atau tutorial..." onkeyup="debounceIpFilter()" class="form-control" style="width: 220px; padding: 6px 12px; font-size: 0.88rem;">
+              <select id="ipFilterCat" onchange="loadIpAnalytics()" class="form-control" style="width: 170px; padding: 6px 12px; font-size: 0.88rem;">
+                <option value="">Semua Kategori</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th style="width: 45px;">#</th>
+                  <th>Alamat IP</th>
+                  <th>Perangkat Terakhir</th>
+                  <th>Total Kunjungan</th>
+                  <th>Tutorial Dibaca</th>
+                  <th>Tutorial Terfavorit (Paling Sering)</th>
+                  <th>Kategori</th>
+                  <th>Terakhir Aktif</th>
+                  <th style="text-align: right;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="topIpTableBody">
+                <!-- JS Populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 24px;">
+          <!-- SECTION 2: LIVE STREAM AKTIVITAS KUNJUNGAN REAL-TIME -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <div>
+                <h3><i class="fa-solid fa-satellite-dish" style="color: #10b981;"></i> Live Stream Kunjungan Real-Time</h3>
+                <span style="font-size: 0.82rem; color: #64748b;">Aktivitas pembaca yang sedang terjadi secara langsung</span>
+              </div>
+              <span class="badge" id="liveStreamCounter" style="background:#f1f5f9; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:600;">0 log</span>
+            </div>
+
+            <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Waktu</th>
+                    <th>Alamat IP</th>
+                    <th>Perangkat</th>
+                    <th>Tutorial yang Diakses</th>
+                  </tr>
+                </thead>
+                <tbody id="liveStreamTableBody">
+                  <!-- JS Populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SECTION 3: TUTORIAL POPULARITY AMONG IPS -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <div>
+                <h3><i class="fa-solid fa-book-open-reader" style="color: #3b82f6;"></i> Tutorial Paling Banyak Pembaca IP</h3>
+                <span style="font-size: 0.82rem; color: #64748b;">Distribusi variasi IP yang mengakses materi</span>
+              </div>
+            </div>
+
+            <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Judul Panduan</th>
+                    <th>IP Unik</th>
+                    <th>Total Hits</th>
+                  </tr>
+                </thead>
+                <tbody id="tutorialIpStatsTableBody">
+                  <!-- JS Populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- TAB 2: TUTORIALS MANAGEMENT -->
@@ -611,6 +795,89 @@
             <button type="submit" class="btn btn-primary" id="changePassBtn"><i class="fa-solid fa-check"></i> Simpan Password</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: IP DETAIL INSPECTION -->
+  <div class="modal-overlay" id="ipDetailModal">
+    <div class="modal-content" style="max-width: 800px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 38px; height: 38px; border-radius: 8px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">
+            <i class="fa-solid fa-network-wired"></i>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem;">Detail Aktivitas IP: <span id="modalIpAddress" class="ip-code"></span></h3>
+            <span style="font-size: 0.82rem; color: #64748b;" id="modalIpSubtitle">Memuat informasi...</span>
+          </div>
+        </div>
+        <button class="modal-close" onclick="closeIpDetailModal()">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px 24px;">
+        <!-- IP Quick KPI -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 1.25rem; font-weight: 700; color: #0b57cf;" id="modalStatHits">0</div>
+            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">Total Kunjungan</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 1.25rem; font-weight: 700; color: #10b981;" id="modalStatTutorials">0</div>
+            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">Tutorial Unik</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 0.88rem; font-weight: 700; color: #334155;" id="modalStatFirstSeen">-</div>
+            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">Akses Pertama</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 0.88rem; font-weight: 700; color: #334155;" id="modalStatLastSeen">-</div>
+            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">Akses Terakhir</div>
+          </div>
+        </div>
+
+        <!-- Breakdown Tutorial yang Dibaca -->
+        <div style="margin-bottom: 24px;">
+          <h4 style="font-size: 0.95rem; margin-bottom: 10px; color: #0f172a;"><i class="fa-solid fa-list-check" style="color: #3b82f6;"></i> Tutorial yang Pernah Diakses oleh IP Ini</h4>
+          <div class="table-responsive" style="max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Judul Panduan</th>
+                  <th>Kategori</th>
+                  <th>Frekuensi (Hits)</th>
+                  <th>Terakhir Dibuka</th>
+                </tr>
+              </thead>
+              <tbody id="modalTutorialsBody">
+                <!-- JS populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Riwayat Kronologis Akses -->
+        <div>
+          <h4 style="font-size: 0.95rem; margin-bottom: 10px; color: #0f172a;"><i class="fa-solid fa-clock-rotate-left" style="color: #64748b;"></i> Riwayat Kronologis Log Akses (Timeline)</h4>
+          <div class="table-responsive" style="max-height: 240px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Waktu</th>
+                  <th>Tutorial</th>
+                  <th>Browser / OS</th>
+                </tr>
+              </thead>
+              <tbody id="modalHistoryBody">
+                <!-- JS populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeIpDetailModal()">Tutup</button>
       </div>
     </div>
   </div>

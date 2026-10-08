@@ -276,6 +276,7 @@ function switchTab(tabName) {
 
   const titles = {
     dashboard: 'Ringkasan Dashboard',
+    'live-tracking': 'Live Tracking & Analisa IP Pengunjung',
     tutorials: 'Kelola Seluruh Tutorial',
     categories: 'Kelola Kategori Modul & Hak Akses',
     users: 'Kelola Pengguna Administrator',
@@ -283,7 +284,15 @@ function switchTab(tabName) {
   };
   document.getElementById('pageTitle').innerText = titles[tabName] || 'Admin Console';
 
-  if (tabName === 'dashboard') loadDashboardStats();
+  if (tabName === 'dashboard') {
+    stopLiveTrackingAutoRefresh();
+    loadDashboardStats();
+  } else if (tabName === 'live-tracking') {
+    initLiveTrackingTab();
+  } else {
+    stopLiveTrackingAutoRefresh();
+  }
+
   if (tabName === 'tutorials') loadAdminTutorials();
   if (tabName === 'categories') loadAdminCategories();
   if (tabName === 'users') loadAdminUsers();
@@ -303,6 +312,13 @@ async function loadDashboardStats() {
     document.getElementById('statViews').innerText = d.totalViews;
     if (document.getElementById('statUniqueVisitors')) {
       document.getElementById('statUniqueVisitors').innerText = d.totalUniqueVisitors || 0;
+    }
+    if (document.getElementById('statTopIp')) {
+      if (d.topIp && d.topIp.ip_address) {
+        document.getElementById('statTopIp').innerHTML = `<code>${escapeHtml(d.topIp.ip_address)}</code> <span style="font-size:0.75rem; color:#64748b;">(${d.topIp.hits}x)</span>`;
+      } else {
+        document.getElementById('statTopIp').innerText = '-';
+      }
     }
 
     // Render Recent
@@ -337,14 +353,19 @@ async function loadDashboardStats() {
     const logBody = document.getElementById('dashboardVisitorLogsTable');
     if (logBody) {
       if (!d.recentViewLogs || d.recentViewLogs.length === 0) {
-        logBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:25px; color:#94a3b8;"><i class="fa-solid fa-user-clock"></i> Belum ada aktivitas pembaca riil yang tercatat</td></tr>`;
+        logBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:25px; color:#94a3b8;"><i class="fa-solid fa-user-clock"></i> Belum ada aktivitas pembaca riil yang tercatat</td></tr>`;
       } else {
         logBody.innerHTML = d.recentViewLogs.map(log => `
           <tr>
             <td style="color:#64748b; font-size:0.82rem;"><i class="fa-regular fa-clock"></i> ${new Date(log.viewed_at).toLocaleTimeString('id-ID')} (${new Date(log.viewed_at).toLocaleDateString('id-ID')})</td>
+            <td>
+              <span class="ip-code" style="cursor:pointer;" onclick="switchTab('live-tracking'); openIpDetailModal('${escapeHtml(log.ip_address || '127.0.0.1')}')" title="Klik untuk lihat detail riwayat IP ini">
+                ${escapeHtml(log.ip_address || '127.0.0.1')}
+              </span>
+            </td>
+            <td>${renderDeviceBadge(log.parsed_ua)}</td>
             <td><a href="/tutorial/${log.tutorial_slug}" target="_blank" style="font-weight:600; color:#0f172a;">${escapeHtml(log.tutorial_title)}</a></td>
             <td><span class="badge" style="background:#f1f5f9; padding:2px 8px; border-radius:4px; font-size:0.8rem;">${escapeHtml(log.category_name)}</span></td>
-            <td><code style="font-size:0.8rem; background:#f8fafc; padding:2px 6px; border-radius:4px; border:1px solid #e2e8f0;">${escapeHtml(log.ip_address || '127.0.0.1')}</code></td>
           </tr>
         `).join('');
       }
@@ -354,6 +375,351 @@ async function loadDashboardStats() {
     console.error('Error load stats:', err);
   }
 }
+
+// ----------------- LIVE TRACKING & IP ANALYTICS -----------------
+let currentIpTimeRange = 'all';
+let isAutoRefreshLive = true;
+let liveStreamTimer = null;
+let lastSeenStreamId = 0;
+let ipFilterDebounceTimer = null;
+
+function initLiveTrackingTab() {
+  populateIpCategoryFilter();
+  loadIpAnalytics();
+  loadIpLiveStream();
+  startLiveTrackingAutoRefresh();
+}
+
+function stopLiveTrackingAutoRefresh() {
+  if (liveStreamTimer) {
+    clearInterval(liveStreamTimer);
+    liveStreamTimer = null;
+  }
+}
+
+function startLiveTrackingAutoRefresh() {
+  stopLiveTrackingAutoRefresh();
+  if (isAutoRefreshLive) {
+    liveStreamTimer = setInterval(() => {
+      const targetPane = document.getElementById('tab-live-tracking');
+      if (targetPane && targetPane.style.display !== 'none') {
+        loadIpLiveStream();
+      }
+    }, 4000);
+  }
+}
+
+function toggleAutoRefresh(enable) {
+  isAutoRefreshLive = enable;
+  const statusElem = document.getElementById('liveStatusText');
+  if (enable) {
+    if (statusElem) statusElem.innerText = 'Live Tracking Aktif';
+    startLiveTrackingAutoRefresh();
+  } else {
+    if (statusElem) statusElem.innerText = 'Auto-Refresh Dijeda';
+    stopLiveTrackingAutoRefresh();
+  }
+}
+
+function manualRefreshLiveIp() {
+  const btn = document.getElementById('btnManualRefresh');
+  if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memuat...';
+  Promise.all([loadIpAnalytics(), loadIpLiveStream(true)]).finally(() => {
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Refresh Sekarang';
+  });
+}
+
+function setIpTimeFilter(range, btn) {
+  currentIpTimeRange = range;
+  document.querySelectorAll('#timeFilterPills .filter-pill').forEach(el => el.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  loadIpAnalytics();
+}
+
+function debounceIpFilter() {
+  if (ipFilterDebounceTimer) clearTimeout(ipFilterDebounceTimer);
+  ipFilterDebounceTimer = setTimeout(() => {
+    loadIpAnalytics();
+  }, 350);
+}
+
+function populateIpCategoryFilter() {
+  const select = document.getElementById('ipFilterCat');
+  if (!select) return;
+  const currentVal = select.value;
+  select.innerHTML = '<option value="">Semua Kategori</option>' + 
+    allCategories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  if (currentVal) select.value = currentVal;
+}
+
+function timeAgo(dateString) {
+  if (!dateString) return '-';
+  const now = new Date();
+  const past = new Date(dateString);
+  const diffSec = Math.floor((now - past) / 1000);
+  if (diffSec < 10) return 'Baru saja';
+  if (diffSec < 60) return `${diffSec} detik lalu`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} mnt lalu`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} jam lalu`;
+  const diffDays = Math.floor(diffHour / 24);
+  return `${diffDays} hari lalu`;
+}
+
+function renderDeviceBadge(ua) {
+  if (!ua) return `<span class="device-badge"><i class="fa-solid fa-desktop"></i> Desktop</span>`;
+  let icon = 'fa-solid fa-desktop';
+  if (ua.device === 'Mobile') icon = 'fa-solid fa-mobile-screen';
+  if (ua.device === 'Tablet') icon = 'fa-solid fa-tablet-screen-button';
+  return `<span class="device-badge" title="${escapeHtml(ua.browser + ' - ' + ua.os)}"><i class="${icon}"></i> ${escapeHtml(ua.browser)} (${escapeHtml(ua.os)})</span>`;
+}
+
+async function loadIpAnalytics() {
+  try {
+    const search = (document.getElementById('ipFilterSearch')?.value || '').trim();
+    const catId = document.getElementById('ipFilterCat')?.value || '';
+
+    const params = new URLSearchParams();
+    if (currentIpTimeRange) params.set('time_range', currentIpTimeRange);
+    if (search) params.set('search', search);
+    if (catId) params.set('category_id', catId);
+
+    const res = await fetchAdmin(`/api/admin/ip-analytics?${params.toString()}`);
+    const json = await res.json();
+    if (!json.success) return;
+
+    const data = json.data;
+
+    // KPI cards
+    if (document.getElementById('ipStatTotalHits')) {
+      document.getElementById('ipStatTotalHits').innerText = data.summary.total_views;
+    }
+    if (document.getElementById('ipStatUniqueIps')) {
+      document.getElementById('ipStatUniqueIps').innerText = data.summary.unique_ips;
+    }
+    if (document.getElementById('ipStatActiveNow')) {
+      document.getElementById('ipStatActiveNow').innerText = data.summary.active_now;
+    }
+    if (document.getElementById('ipStatTopIp')) {
+      if (data.summary.top_ip) {
+        document.getElementById('ipStatTopIp').innerHTML = `<span class="ip-code" style="cursor:pointer;" onclick="openIpDetailModal('${escapeHtml(data.summary.top_ip.ip_address)}')">${escapeHtml(data.summary.top_ip.ip_address)}</span> <small style="font-size:0.8rem; color:#64748b;">(${data.summary.top_ip.total_views}x)</small>`;
+      } else {
+        document.getElementById('ipStatTopIp').innerText = '-';
+      }
+    }
+
+    // Top IPs Table
+    const topBody = document.getElementById('topIpTableBody');
+    if (topBody) {
+      if (!data.top_ips || data.top_ips.length === 0) {
+        topBody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:36px; color:#94a3b8;"><i class="fa-solid fa-magnifying-glass"></i> Belum ada aktivitas kunjungan IP pada filter waktu ini</td></tr>`;
+      } else {
+        const maxHits = data.top_ips[0].total_views || 1;
+        topBody.innerHTML = data.top_ips.map((row, idx) => {
+          const rank = idx + 1;
+          const pct = Math.max(8, Math.round((row.total_views / maxHits) * 100));
+          const favTitle = row.favorite_tutorial ? `<a href="/tutorial/${row.favorite_tutorial.slug}" target="_blank" style="font-weight:600; color:#0f172a;" title="${escapeHtml(row.favorite_tutorial.title)}">${escapeHtml(row.favorite_tutorial.title)}</a> <span style="font-size:0.75rem; color:#64748b;">(${row.favorite_tutorial.hits}x)</span>` : '<span style="color:#94a3b8;">-</span>';
+          
+          let rankBadge = `<span style="font-weight:700; color:#64748b;">${rank}</span>`;
+          if (rank === 1) rankBadge = `<span style="color:#eab308; font-size:1.1rem;"><i class="fa-solid fa-crown" title="Peringkat 1 Teraktif"></i></span>`;
+          else if (rank === 2) rankBadge = `<span style="color:#94a3b8; font-weight:700;"><i class="fa-solid fa-medal"></i> 2</span>`;
+          else if (rank === 3) rankBadge = `<span style="color:#d97706; font-weight:700;"><i class="fa-solid fa-medal"></i> 3</span>`;
+
+          return `
+            <tr>
+              <td>${rankBadge}</td>
+              <td>
+                <span class="ip-code" style="cursor:pointer;" onclick="openIpDetailModal('${escapeHtml(row.ip_address)}')" title="Klik untuk lihat riwayat lengkap IP ini">
+                  ${escapeHtml(row.ip_address)}
+                </span>
+              </td>
+              <td>${renderDeviceBadge(row.parsed_ua)}</td>
+              <td>
+                <div class="hits-progress-wrap">
+                  <strong style="color:var(--admin-primary); min-width:32px;">${row.total_views}</strong>
+                  <div class="hits-bar-bg"><div class="hits-bar-fill" style="width:${pct}%;"></div></div>
+                </div>
+              </td>
+              <td><span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:600; padding:3px 8px; border-radius:12px;">${row.unique_tutorials_count} modul</span></td>
+              <td style="max-width:240px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${favTitle}</td>
+              <td><span class="badge" style="background:#f1f5f9; padding:2px 8px; border-radius:4px; font-size:0.8rem;">${escapeHtml(row.favorite_category)}</span></td>
+              <td style="color:#64748b; font-size:0.82rem;" title="${new Date(row.last_viewed_at).toLocaleString('id-ID')}">
+                <i class="fa-regular fa-clock"></i> ${timeAgo(row.last_viewed_at)}
+              </td>
+              <td style="text-align: right;">
+                <button class="btn btn-outline btn-sm" onclick="openIpDetailModal('${escapeHtml(row.ip_address)}')">
+                  <i class="fa-solid fa-circle-info"></i> Detail
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    // Tutorial IP Distribution Table
+    const tutStatsBody = document.getElementById('tutorialIpStatsTableBody');
+    if (tutStatsBody) {
+      if (!data.tutorial_stats || data.tutorial_stats.length === 0) {
+        tutStatsBody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:24px; color:#94a3b8;">Belum ada tutorial yang diakses</td></tr>`;
+      } else {
+        tutStatsBody.innerHTML = data.tutorial_stats.map(t => `
+          <tr>
+            <td>
+              <a href="/tutorial/${t.slug}" target="_blank" style="font-weight:600; color:#0f172a; display:block;">${escapeHtml(t.title)}</a>
+              <span style="font-size:0.78rem; color:#64748b;">${escapeHtml(t.category_name)}</span>
+            </td>
+            <td><span class="badge" style="background:#ecfdf5; color:#059669; font-weight:700; padding:2px 8px; border-radius:12px;">${t.unique_ips_count} IP</span></td>
+            <td><strong>${t.total_hits}</strong> hits</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+  } catch (err) {
+    console.error('Error load IP analytics:', err);
+  }
+}
+
+async function loadIpLiveStream(forceRefresh = false) {
+  try {
+    const res = await fetchAdmin('/api/admin/ip-live-stream?limit=35');
+    const json = await res.json();
+    if (!json.success) return;
+
+    const data = json.data;
+    const logs = data.logs || [];
+
+    const lastUpdatedElem = document.getElementById('liveLastUpdated');
+    if (lastUpdatedElem) {
+      lastUpdatedElem.innerText = 'Pembaruan: ' + new Date().toLocaleTimeString('id-ID');
+    }
+
+    const counterElem = document.getElementById('liveStreamCounter');
+    if (counterElem) {
+      counterElem.innerText = `${logs.length} log terbaru (${data.active_users_5m} IP aktif 5 mnt)`;
+    }
+
+    const streamBody = document.getElementById('liveStreamTableBody');
+    if (streamBody) {
+      if (logs.length === 0) {
+        streamBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:32px; color:#94a3b8;"><i class="fa-solid fa-satellite-dish"></i> Menunggu aktivitas pembaca live...</td></tr>`;
+      } else {
+        const previousId = lastSeenStreamId;
+        const newHighestId = logs[0] ? logs[0].id : 0;
+        
+        streamBody.innerHTML = logs.map(log => {
+          const isNew = previousId > 0 && log.id > previousId;
+          return `
+            <tr class="${isNew ? 'row-flash' : ''}">
+              <td style="color:#64748b; font-size:0.82rem; white-space:nowrap;">
+                <i class="fa-regular fa-clock"></i> ${new Date(log.viewed_at).toLocaleTimeString('id-ID')}
+              </td>
+              <td>
+                <span class="ip-code" style="cursor:pointer;" onclick="openIpDetailModal('${escapeHtml(log.ip_address)}')" title="Lihat profil IP ini">
+                  ${escapeHtml(log.ip_address)}
+                </span>
+              </td>
+              <td>${renderDeviceBadge(log.parsed_ua)}</td>
+              <td>
+                <a href="/tutorial/${log.tutorial_slug}" target="_blank" style="font-weight:600; color:#0f172a; display:inline-block;" title="${escapeHtml(log.tutorial_title)}">
+                  ${escapeHtml(log.tutorial_title)}
+                </a>
+                <span class="badge" style="background:#f1f5f9; padding:1px 6px; border-radius:4px; font-size:0.75rem; margin-left:4px;">${escapeHtml(log.category_name)}</span>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        if (newHighestId > lastSeenStreamId) {
+          lastSeenStreamId = newHighestId;
+          if (previousId > 0) {
+            loadIpAnalytics();
+          }
+        }
+      }
+    }
+
+  } catch (err) {
+    console.error('Error load live stream:', err);
+  }
+}
+
+async function openIpDetailModal(ip) {
+  const modal = document.getElementById('ipDetailModal');
+  if (!modal) return;
+  modal.classList.add('active');
+
+  document.getElementById('modalIpAddress').innerText = ip;
+  document.getElementById('modalIpSubtitle').innerText = 'Memuat riwayat aktivitas...';
+  document.getElementById('modalStatHits').innerText = '...';
+  document.getElementById('modalStatTutorials').innerText = '...';
+  document.getElementById('modalStatFirstSeen').innerText = '...';
+  document.getElementById('modalStatLastSeen').innerText = '...';
+  document.getElementById('modalTutorialsBody').innerHTML = '<tr><td colspan="4" style="text-align:center; padding:16px;">Memuat data...</td></tr>';
+  document.getElementById('modalHistoryBody').innerHTML = '<tr><td colspan="3" style="text-align:center; padding:16px;">Memuat riwayat...</td></tr>';
+
+  try {
+    const res = await fetchAdmin(`/api/admin/ip-details/${encodeURIComponent(ip)}`);
+    const json = await res.json();
+    if (!json.success) {
+      alert('Gagal memuat detail IP: ' + (json.error || 'Data tidak ditemukan'));
+      closeIpDetailModal();
+      return;
+    }
+
+    const d = json.data;
+    const s = d.summary;
+
+    document.getElementById('modalIpSubtitle').innerHTML = `Perangkat Terakhir: ${renderDeviceBadge(s.parsed_ua)}`;
+    document.getElementById('modalStatHits').innerText = s.total_views;
+    document.getElementById('modalStatTutorials').innerText = s.unique_tutorials;
+    document.getElementById('modalStatFirstSeen').innerText = new Date(s.first_seen).toLocaleDateString('id-ID');
+    document.getElementById('modalStatLastSeen').innerText = timeAgo(s.last_seen);
+
+    const tutBody = document.getElementById('modalTutorialsBody');
+    if (!d.tutorials || d.tutorials.length === 0) {
+      tutBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:16px; color:#94a3b8;">Belum ada tutorial yang dibuka</td></tr>';
+    } else {
+      tutBody.innerHTML = d.tutorials.map(t => `
+        <tr>
+          <td><a href="/tutorial/${t.slug}" target="_blank" style="font-weight:600; color:#0f172a;">${escapeHtml(t.title)}</a></td>
+          <td><span class="badge" style="background:#f1f5f9; padding:2px 6px; border-radius:4px; font-size:0.78rem;">${escapeHtml(t.category_name)}</span></td>
+          <td><strong style="color:var(--admin-primary);">${t.hits}</strong> kali dibuka</td>
+          <td style="color:#64748b; font-size:0.8rem;">${timeAgo(t.last_accessed)}</td>
+        </tr>
+      `).join('');
+    }
+
+    const histBody = document.getElementById('modalHistoryBody');
+    if (!d.history || d.history.length === 0) {
+      histBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:16px; color:#94a3b8;">Belum ada riwayat tercatat</td></tr>';
+    } else {
+      histBody.innerHTML = d.history.map(h => `
+        <tr>
+          <td style="color:#64748b; font-size:0.8rem; white-space:nowrap;">
+            ${new Date(h.viewed_at).toLocaleTimeString('id-ID')} (${new Date(h.viewed_at).toLocaleDateString('id-ID')})
+          </td>
+          <td>
+            <a href="/tutorial/${h.tutorial_slug}" target="_blank" style="font-weight:600; color:#0f172a;">${escapeHtml(h.tutorial_title)}</a>
+            <span style="font-size:0.75rem; color:#64748b; margin-left:4px;">(${escapeHtml(h.category_name)})</span>
+          </td>
+          <td>${renderDeviceBadge(h.parsed_ua)}</td>
+        </tr>
+      `).join('');
+    }
+
+  } catch (err) {
+    alert('Terjadi kesalahan saat memuat detail IP: ' + err.message);
+  }
+}
+
+function closeIpDetailModal() {
+  const modal = document.getElementById('ipDetailModal');
+  if (modal) modal.classList.remove('active');
+}
+
 
 // ----------------- TUTORIALS CRUD -----------------
 async function loadAdminTutorials() {

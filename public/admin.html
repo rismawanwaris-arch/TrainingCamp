@@ -128,7 +128,7 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
           <!-- RECENT TUTORIALS -->
           <div class="admin-card">
             <div class="admin-card-header">
@@ -174,7 +174,7 @@
         </div>
 
         <!-- REAL-TIME VISITOR ACTIVITY LOG -->
-        <div class="admin-card" style="margin-top: 24px;">
+        <div class="admin-card" style="margin-top: 16px;">
           <div class="admin-card-header">
             <div>
               <h3><i class="fa-solid fa-rss" style="color: #10b981;"></i> Aktivitas Kunjungan Pembaca Riil (Real-Time)</h3>
@@ -207,14 +207,14 @@
       <div id="tab-live-tracking" class="tab-pane" style="display: none;">
         
         <!-- TOP CONTROL BAR -->
-        <div class="admin-card" style="margin-bottom: 24px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-            <div style="display: flex; align-items: center; gap: 12px;">
+        <div class="admin-card" style="margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
               <span class="live-badge">
                 <span class="live-indicator-dot" style="margin: 0;"></span>
                 <span id="liveStatusText">Live Tracking Aktif</span>
               </span>
-              <span style="color: #64748b; font-size: 0.85rem;" id="liveLastUpdated">Pembaruan: Baru saja</span>
+              <span style="color: #64748b; font-size: 0.82rem;" id="liveLastUpdated">Pembaruan: Baru saja</span>
             </div>
 
             <!-- TIME RANGE FILTER PILLS -->
@@ -226,9 +226,9 @@
             </div>
 
             <!-- REFRESH CONTROLS -->
-            <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
               <div class="live-toggle-wrapper" title="Otomatis memperbarui data setiap 4 detik" style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 0.85rem; color: #475569; font-weight: 500;">Auto-Refresh:</span>
+                <span style="font-size: 0.82rem; color: #475569; font-weight: 500;">Auto-Refresh:</span>
                 <label class="toggle-switch">
                   <input type="checkbox" id="autoRefreshToggle" checked onchange="toggleAutoRefresh(this.checked)">
                   <span class="toggle-slider"></span>
@@ -242,7 +242,7 @@
         </div>
 
         <!-- STATS KPI CARDS -->
-        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 24px;">
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 16px;">
           <div class="stat-card">
             <div class="stat-icon blue"><i class="fa-solid fa-eye"></i></div>
             <div class="stat-data">
@@ -278,13 +278,13 @@
           <div class="admin-card-header">
             <div>
               <h3><i class="fa-solid fa-ranking-star" style="color: #f59e0b;"></i> Peringkat IP yang Sering Mengakses Panduan</h3>
-              <p style="font-size: 0.85rem; color: #64748b; margin-top: 4px; margin-bottom: 0;">
+              <p style="font-size: 0.82rem; color: #64748b; margin-top: 3px; margin-bottom: 0;">
                 Daftar alamat IP pengakses teratas, frekuensi kunjungan, dan materi tutorial yang paling sering dibuka.
               </p>
             </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
-              <input type="text" id="ipFilterSearch" placeholder="Cari IP atau tutorial..." onkeyup="debounceIpFilter()" class="form-control" style="width: 220px; padding: 6px 12px; font-size: 0.88rem;">
-              <select id="ipFilterCat" onchange="loadIpAnalytics()" class="form-control" style="width: 170px; padding: 6px 12px; font-size: 0.88rem;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="ipFilterSearch" placeholder="Cari IP atau tutorial..." onkeyup="debounceIpFilter()" class="form-control" style="width: 200px; padding: 5px 10px; font-size: 0.84rem;">
+              <select id="ipFilterCat" onchange="loadIpAnalytics()" class="form-control" style="width: 160px; padding: 5px 10px; font-size: 0.84rem;">
                 <option value="">Semua Kategori</option>
               </select>
             </div>
@@ -312,18 +312,18 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 24px;">
+        <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px;">
           <!-- SECTION 2: LIVE STREAM AKTIVITAS KUNJUNGAN REAL-TIME -->
           <div class="admin-card">
             <div class="admin-card-header">
               <div>
                 <h3><i class="fa-solid fa-satellite-dish" style="color: #10b981;"></i> Live Stream Kunjungan Real-Time</h3>
-                <span style="font-size: 0.82rem; color: #64748b;">Aktivitas pembaca yang sedang terjadi secara langsung</span>
+                <span style="font-size: 0.78rem; color: #64748b;">Aktivitas pembaca yang sedang terjadi secara langsung</span>
               </div>
-              <span class="badge" id="liveStreamCounter" style="background:#f1f5f9; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:600;">0 log</span>
+              <span class="badge" id="liveStreamCounter" style="background:#f1f5f9; padding:3px 8px; border-radius:10px; font-size:0.78rem; font-weight:600;">0 log</span>
             </div>
 
-            <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+            <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
               <table class="admin-table">
                 <thead>
                   <tr>
@@ -345,11 +345,11 @@
             <div class="admin-card-header">
               <div>
                 <h3><i class="fa-solid fa-book-open-reader" style="color: #3b82f6;"></i> Tutorial Paling Banyak Pembaca IP</h3>
-                <span style="font-size: 0.82rem; color: #64748b;">Distribusi variasi IP yang mengakses materi</span>
+                <span style="font-size: 0.78rem; color: #64748b;">Distribusi variasi IP yang mengakses materi</span>
               </div>
             </div>
 
-            <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+            <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
               <table class="admin-table">
                 <thead>
                   <tr>
